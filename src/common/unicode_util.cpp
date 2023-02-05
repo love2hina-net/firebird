@@ -60,8 +60,8 @@ namespace {
 const char* const inTemplate = "icuin%s.dll";
 const char* const ucTemplate = "icuuc%s.dll";
 #elif defined(DARWIN)
-const char* const inTemplate = "lib/libicui18n.%s.dylib";
-const char* const ucTemplate = "lib/libicuuc.%s.dylib";
+const char* const inTemplate = "libicui18n.%s.dylib";
+const char* const ucTemplate = "libicuuc.%s.dylib";
 #elif defined(HPUX)
 const char* const inTemplate = "libicui18n.sl.%s";
 const char* const ucTemplate = "libicuuc.sl.%s";
@@ -509,7 +509,7 @@ static ModuleLoader::Module* formatAndLoad(const char* templateName,
 		// ICU has several schemas for placing version into file name
 		const char* patterns[] =
 		{
-			"%d_%d", "%d%d", NULL
+			"%d_%d", "%d.%d", "%d%d", NULL
 		};
 
 		PathName s, filename;
