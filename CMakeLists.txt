@@ -334,6 +334,7 @@ include_directories("extern/libtomcrypt/src/headers")
 include_directories("extern/decNumber")
 include_directories("extern/icu/include")
 include_directories("extern/zlib")
+include_directories("extern/re2")
 
 include_directories("src/include")
 include_directories("src/include/gen")
@@ -375,6 +376,12 @@ list(FILTER decNumber_src EXCLUDE REGEX ".*decCommon.c")
 add_library                 (decNumber ${decNumber_src})
 project_group               (decNumber Extern)
 
+########################################
+# LIBRARY RE2
+########################################
+
+add_subdirectory("extern/re2")
+project_group               (re2 Extern)
 
 ########################################
 # EXECUTABLE btyacc

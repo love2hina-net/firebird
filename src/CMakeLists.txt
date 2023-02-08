@@ -404,7 +404,7 @@ if (APPLE)
 endif()
 
 add_library                 (common ${common_src} ${common_os_src} ${common_include})
-target_link_libraries       (common ${LIB_mpr} libtommath libtomcrypt decNumber)
+target_link_libraries       (common ${LIB_mpr} libtommath libtomcrypt decNumber re2)
 add_dependencies_cc         (common UpdateCloopInterfaces)
 if (UNIX)
 target_link_libraries       (common dl)
@@ -619,7 +619,7 @@ set_exported_symbols        (srp fbplugin)
 # SHARED LIBRARY legacy_auth
 ########################################
 
-add_library                 (legacy_auth SHARED auth/SecurityDatabase/LegacyServer.cpp ${VERSION_RC})
+add_library                 (legacy_auth SHARED auth/SecurityDatabase/LegacyServer.cpp auth/SecDbCache.cpp ${VERSION_RC})
 target_link_libraries       (legacy_auth common yvalve)
 set_target_properties       (legacy_auth PROPERTIES OUTPUT_NAME Legacy_Auth)
 set_output_directory        (legacy_auth plugins)

@@ -34,6 +34,7 @@ add_dependencies_cc     (remote UpdateCloopInterfaces)
 ###############################################################################
 
 set(fbserver_src
+    ../auth/SecDbCache.cpp
     ../auth/SecureRemotePassword/server/SrpServer.cpp
     ../auth/SecureRemotePassword/server/SrpServer.h
 )
