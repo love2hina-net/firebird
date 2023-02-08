@@ -248,6 +248,36 @@ set(parse_src
     ${CMAKE_CURRENT_SOURCE_DIR}/dsql/parse.y
     ${CMAKE_CURRENT_SOURCE_DIR}/dsql/btyacc_fb.ske
 )
+if (WIN32)
+add_custom_command(
+    OUTPUT y_tab.h y_tab.c
+    DEPENDS
+        btyacc
+        ${parse_src}
+    COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
+        (Get-Content -Path ${CMAKE_CURRENT_SOURCE_DIR}/dsql/parse.y) | \
+        foreach { if ($_ -match '%type .*') { Write-Output $_ }} | \
+        Set-Content -Path types.y"
+    COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
+        (Get-Content -Path ${CMAKE_CURRENT_SOURCE_DIR}/dsql/parse.y) | \
+        foreach { if (-not ($_ -match '%type .*')) { Write-Output $_ }} | \
+        Set-Content -Path y.y"
+    COMMAND btyacc -l -d -S ${CMAKE_CURRENT_SOURCE_DIR}/dsql/btyacc_fb.ske y.y
+
+    COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
+        (Get-Content -Path y_tab.h) | \
+        foreach { $_ -replace '#define ([A-Z].*)', '#define TOK_$1' } | \
+        Set-Content -Path y_tab.h"
+    COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
+        (Get-Content -Path y_tab.h) | \
+        foreach { $_ -replace '#define TOK_YY(.*)', '#define YY$1' } | \
+        Set-Content -Path y_tab.h"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different y_tab.h include/gen/parse.h
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different y_tab.c dsql/parse.cpp
+    COMMENT "Generating parse.cpp, parse.h"
+    VERBATIM
+)
+else()
 add_custom_command(
     OUTPUT y_tab.h y_tab.c
     DEPENDS
@@ -265,6 +295,7 @@ add_custom_command(
     COMMENT "Generating parse.cpp, parse.h"
     VERBATIM
 )
+endif()
 add_custom_target(parse
     DEPENDS y_tab.h y_tab.c
     SOURCES ${parse_src} y_tab.h y_tab.c
