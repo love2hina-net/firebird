@@ -32,7 +32,8 @@ if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     )
 endif()
 
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/builds/cmake)
+set(FIREBIRD_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_MODULE_PATH ${FIREBIRD_SOURCE_DIR}/builds/cmake)
 
 if (NATIVE_BUILD_DIR)
     get_filename_component(NATIVE_BUILD_DIR ${NATIVE_BUILD_DIR} ABSOLUTE)
@@ -164,7 +165,7 @@ if (WIN32)
     set(FB_IPC_NAME "FIREBIRD")
 endif()
 
-set(AUTOCONFIG_SRC ${CMAKE_SOURCE_DIR}/src/include/gen/autoconfig.h.in)
+set(AUTOCONFIG_SRC ${FIREBIRD_SOURCE_DIR}/src/include/gen/autoconfig.h.in)
 set(AUTOCONFIG ${CMAKE_BINARY_DIR}/src/include/gen/autoconfig.h)
 configure_file(${AUTOCONFIG_SRC} ${AUTOCONFIG} @ONLY)
 
@@ -178,7 +179,7 @@ add_definitions(-DDEV_BUILD)
 
 if (WIN32)
     set(OS_DIR win32)
-    set(VERSION_RC ${CMAKE_SOURCE_DIR}/src/jrd/version.rc)
+    set(VERSION_RC ${FIREBIRD_SOURCE_DIR}/src/jrd/version.rc)
 
     if (MSVC)
         set(disable_msvc_warnings "/wd4996")
@@ -278,7 +279,7 @@ if (WIN32)
 endif()
 
 if (UNIX)
-    file(GLOB vers_src "${CMAKE_SOURCE_DIR}/builds/posix/*.vers")
+    file(GLOB vers_src "${FIREBIRD_SOURCE_DIR}/builds/posix/*.vers")
     foreach(f ${vers_src})
         get_filename_component(name ${f} NAME)
         set(name ${CMAKE_BINARY_DIR}/builds/posix/${name})

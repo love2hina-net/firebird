@@ -1,6 +1,6 @@
 #include(SourceGroups)
 
-set(SSRC ${CMAKE_SOURCE_DIR}/src)
+set(SSRC ${FIREBIRD_SOURCE_DIR}/src)
 set(BSRC ${CMAKE_BINARY_DIR}/src)
 
 set(EPP_TXT "GPRE files")
