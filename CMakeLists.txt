@@ -53,9 +53,31 @@ endif()
 #
 ################################################################################
 
-message(STATUS "Creating directories")
-foreach(DIR IN LISTS "alice" "auth" "auth/SecurityDatabase" "burp" "dsql" "gpre" "gpre/std" "isql" "jrd" "misc" "msgs" "qli" "examples" "yvalve" "utilities" "utilities/gstat")
-    file(MAKE_DIRECTORY "${FIREBIRD_GEN_DIR}/${DIR}")
+foreach(DIR IN ITEMS
+    ""
+    "/alice"
+    "/auth"
+    "/auth/SecurityDatabase"
+    "/burp"
+    "/dbs"
+    "/dsql"
+    "/gpre"
+    "/gpre/std"
+    "/isql"
+    "/jrd"
+    "/misc"
+    "/msgs"
+    "/qli"
+    "/examples"
+    "/yvalve"
+    "/utilities"
+    "/utilities/gstat")
+
+    add_custom_command(
+        OUTPUT "${FIREBIRD_GEN_DIR}${DIR}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${FIREBIRD_GEN_DIR}${DIR}"
+        COMMENT "Creating directory: ${FIREBIRD_GEN_DIR}${DIR}"
+    )
 endforeach()
 
 # interfaces
@@ -81,10 +103,10 @@ target_sources(isc_grep
 )
 
 add_custom_command(
-    OUTPUT ${FIREBIRD_SOURCE_DIR}/src/include/firebird/IdlFbInterfaces.h
+    OUTPUT "${FIREBIRD_SOURCE_DIR}/src/include/firebird/IdlFbInterfaces.h"
     DEPENDS
         cloop
-        ${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl
+        "${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl"
     COMMAND cloop
             "${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl"
             c++
@@ -93,11 +115,12 @@ add_custom_command(
     COMMENT "Updating cloop interfaces..."
 )
 add_custom_command(
-    OUTPUT ${FIREBIRD_GEN_DIR}/misc/func.pas
+    OUTPUT "${FIREBIRD_GEN_DIR}/misc/func.pas"
     DEPENDS
-        ${FIREBIRD_SOURCE_DIR}/src/misc/pascal/fb_get_master_interface.pas
-        ${FIREBIRD_SOURCE_DIR}/src/include/firebird/impl/consts_pub.h
-        ${FIREBIRD_SOURCE_DIR}/lang_helpers/gds_codes.pas
+        "${FIREBIRD_GEN_DIR}"
+        "${FIREBIRD_SOURCE_DIR}/src/misc/pascal/fb_get_master_interface.pas"
+        "${FIREBIRD_SOURCE_DIR}/src/include/firebird/impl/consts_pub.h"
+        "${FIREBIRD_SOURCE_DIR}/lang_helpers/gds_codes.pas"
         def_awk
         isc_grep
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FIREBIRD_SOURCE_DIR}/src/misc/pascal/fb_get_master_interface.pas" "${FIREBIRD_GEN_DIR}/misc/func.pas"
@@ -105,13 +128,14 @@ add_custom_command(
 	COMMAND isc_grep < "${FIREBIRD_SOURCE_DIR}/lang_helpers/gds_codes.pas" >> "${FIREBIRD_GEN_DIR}/misc/func.pas"
 )
 add_custom_command(
-    OUTPUT ${FIREBIRD_GEN_DIR}/Firebird.pas
+    OUTPUT "${FIREBIRD_GEN_DIR}/Firebird.pas"
     DEPENDS
         cloop
-        ${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl
-        ${FIREBIRD_SOURCE_DIR}/src/misc/pascal/Pascal.interface.pas
-        ${FIREBIRD_SOURCE_DIR}/src/misc/pascal/Pascal.implementation.pas
-        ${FIREBIRD_GEN_DIR}/misc/func.pas
+        "${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl"
+        "${FIREBIRD_SOURCE_DIR}/src/misc/pascal/Pascal.interface.pas"
+        "${FIREBIRD_SOURCE_DIR}/src/misc/pascal/Pascal.implementation.pas"
+        "${FIREBIRD_GEN_DIR}/misc/func.pas"
+        "${FIREBIRD_GEN_DIR}"
     COMMAND cloop
             "${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl"
             pascal
@@ -126,10 +150,10 @@ add_custom_command(
 )
 add_custom_target(UpdateCloopInterfaces
     DEPENDS
-        ${FIREBIRD_SOURCE_DIR}/src/include/firebird/IdlFbInterfaces.h
-        ${FIREBIRD_GEN_DIR}/Firebird.pas
+        "${FIREBIRD_SOURCE_DIR}/src/include/firebird/IdlFbInterfaces.h"
+        "${FIREBIRD_GEN_DIR}/Firebird.pas"
     SOURCES
-        ${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl
+        "${FIREBIRD_SOURCE_DIR}/src/include/firebird/FirebirdInterface.idl"
 )
 
 # btyacc
@@ -293,7 +317,7 @@ target_compile_definitions(tomcrypt
         LTC_NO_TEST
 )
 target_include_directories(tomcrypt
-    PRIVATE "${FIREBIRD_SOURCE_DIR}/extern/libtomcrypt/src/headers"
+    PUBLIC "${FIREBIRD_SOURCE_DIR}/extern/libtomcrypt/src/headers"
 )
 target_sources(tomcrypt
     PRIVATE
@@ -732,54 +756,631 @@ subdirs(extern/re2)
 # zlib
 message(STATUS "Extracting pre-built zlib")
 add_custom_command(
-    OUTPUT ${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h
+    OUTPUT "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
     COMMAND ${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.exe -y
 )
 
 # parse
 add_custom_command(
     OUTPUT
-        ${FIREBIRD_GEN_DIR}/y_tab.h
-        ${FIREBIRD_GEN_DIR}/y_tab.c
+        "${FIREBIRD_SOURCE_DIR}/src/include/gen/parse.h"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/parse.cpp"
     DEPENDS
         btyacc
-        ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y
-        ${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske"
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
         (Get-Content -Path ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y) | \
         foreach { if ($_ -match '%type .*') { Write-Output $_ }} | \
-        Set-Content -Path ${FIREBIRD_GEN_DIR}/types.y"
+        Set-Content -Path types.y"
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
         (Get-Content -Path ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y) | \
         foreach { if (-not ($_ -match '%type .*')) { Write-Output $_ }} | \
-        Set-Content -Path ${FIREBIRD_GEN_DIR}/y.y"
-    COMMAND btyacc -l -d -S ${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske ${FIREBIRD_GEN_DIR}/y.y
+        Set-Content -Path y.y"
+    COMMAND btyacc -l -d -S "${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske" y.y
 
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
-        (Get-Content -Path ${FIREBIRD_GEN_DIR}/y_tab.h) | \
+        (Get-Content -Path y_tab.h) | \
         foreach { $_ -replace '#define ([A-Z].*)', '#define TOK_$1' } | \
-        Set-Content -Path ${FIREBIRD_GEN_DIR}/y_tab.h"
+        Set-Content -Path y_tab.h"
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
-        (Get-Content -Path ${FIREBIRD_GEN_DIR}/y_tab.h) | \
+        (Get-Content -Path y_tab.h) | \
         foreach { $_ -replace '#define TOK_YY(.*)', '#define YY$1' } | \
-        Set-Content -Path ${FIREBIRD_GEN_DIR}/y_tab.h"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FIREBIRD_GEN_DIR}/y_tab.h ${FIREBIRD_SOURCE_DIR}/src/include/gen/parse.h
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FIREBIRD_GEN_DIR}/y_tab.c ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.cpp
+        Set-Content -Path y_tab.h"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "y_tab.h" "${FIREBIRD_SOURCE_DIR}/src/include/gen/parse.h"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "y_tab.c" "${FIREBIRD_SOURCE_DIR}/src/dsql/parse.cpp"
     COMMENT "Generating parse.cpp, parse.h"
     VERBATIM
 )
-add_custom_target(parse
-    DEPENDS
-        ${FIREBIRD_GEN_DIR}/y_tab.h
-        ${FIREBIRD_GEN_DIR}/y_tab.c
-    SOURCES
-        ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y
-        ${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske
-        ${FIREBIRD_GEN_DIR}/y_tab.h
-        ${FIREBIRD_GEN_DIR}/y_tab.c
-)
 set_source_files_properties(
-    ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.cpp
-    ${FIREBIRD_SOURCE_DIR}/src/include/gen/parse.h
+    "${FIREBIRD_SOURCE_DIR}/src/dsql/parse.cpp"
+    "${FIREBIRD_SOURCE_DIR}/src/include/gen/parse.h"
     PROPERTIES GENERATED TRUE
+)
+
+# common
+add_library(common STATIC)
+target_compile_definitions(common
+    PRIVATE
+        DEV_BUILD
+        SUPERSERVER
+)
+target_link_libraries(common
+    PRIVATE
+        ws2_32
+        tommath
+        tomcrypt
+        decnumber
+        re2
+)
+target_include_directories(common
+    PUBLIC
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+        "${FIREBIRD_SOURCE_DIR}/extern/icu/include"
+        "${FIREBIRD_SOURCE_DIR}/extern/re2"
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib"
+)
+target_sources(common
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
+        "${FIREBIRD_SOURCE_DIR}/src/include/gen/parse.h"
+
+        "${FIREBIRD_SOURCE_DIR}/src/common/Auth.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/BigInteger.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/call_service.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/CharSet.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/alloc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/BaseStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/BlobWrapper.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/BlrWriter.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/ClumpletReader.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/ClumpletWriter.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/DbImplementation.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/fb_string.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/Hash.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/ImplementHelper.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/init.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/InternalMessageBuffer.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/locks.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/MetaString.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/MsgPrint.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/NoThrowTimeStamp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/ParsedList.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/SafeArg.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/semaphore.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/Switches.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/Synchronize.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/SyncObject.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/TempFile.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/TimerImpl.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/timestamp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/TomCryptHash.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/UserBlob.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/classes/zip.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/config/config.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/config/ConfigCache.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/config/config_file.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/config/dir_list.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/CRC32C.cpp"
+        # <IntrinsicFunctions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</IntrinsicFunctions>
+        # <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+        # <IntrinsicFunctions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</IntrinsicFunctions>
+        # <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+        "${FIREBIRD_SOURCE_DIR}/src/common/cvt.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/db_alias.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/DecFloat.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/dllinst.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/dsc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/DynamicStrings.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/enc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/fb_exception.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/Int128.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/IntlParametersBlock.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/IntlUtil.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/isc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/isc_file.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/isc_sync.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/keywords.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/MsgMetadata.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/os/win32/fbsyslog.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/os/win32/guid.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/os/win32/isc_ipc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/os/win32/mod_loader.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/os/win32/os_utils.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/os/win32/path_utils.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/pretty.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/ScanDir.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/sdl.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/security.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/sha.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/sha2/sha2.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/SimilarToRegex.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/StatementMetadata.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/StatusArg.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/StatusHolder.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/TextType.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/ThreadData.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/ThreadStart.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/TimeZoneUtil.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/Tokens.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/unicode_util.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/utils.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/UtilSvc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/common/xdr.cpp"
+)
+
+# gpre_common
+add_library(gpre_common STATIC)
+target_compile_definitions(gpre_common
+    PRIVATE
+        GPRE_FORTRAN
+        GPRE_PASCAL
+        GPRE_COBOL
+        GPRE_ADA
+        SUPERCLIENT
+        DEV_BUILD
+)
+target_link_libraries(gpre_common
+    PRIVATE
+        comctl32
+        ws2_32
+        mpr
+        version
+)
+target_include_directories(gpre_common
+    PUBLIC
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include/gen"
+)
+target_sources(gpre_common
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/cmd.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/cme.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/cmp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/c_cxx.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/exp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/gpre.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/hsh.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/int_cxx.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/jrdmet.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/ada.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/cob.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/fbrmclib.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/ftn.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/pas.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/rmc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/movg.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/msc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/obj_cxx.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/par.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/pat.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/sqe.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/sql.cpp"
+)
+
+# gpre_boot
+add_executable(gpre_boot)
+target_compile_definitions(gpre_boot
+    PRIVATE
+        DEV_BUILD
+        SUPERCLIENT
+        CLIENT
+)
+target_link_libraries(gpre_boot
+    PRIVATE
+        common
+        gpre_common
+)
+target_include_directories(gpre_boot
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+        "${FIREBIRD_SOURCE_DIR}/extern/icu/include"
+)
+target_sources(gpre_boot
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/gpre/boot/gpre_meta_boot.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/gds.cpp"
+)
+
+# preprocess(boot)
+function(preprocess DIR PREP_FILE GPRE_OPT)
+    add_custom_command(
+        OUTPUT "${FIREBIRD_GEN_DIR}/${PREP_FILE}.cpp"
+        DEPENDS
+            "${FIREBIRD_SOURCE_DIR}/src/${PREP_FILE}.epp"
+            "${FIREBIRD_GEN_DIR}"
+            "${FIREBIRD_GEN_DIR}/${DIR}"
+            "${FIREBIRD_GEN_DIR}/dbs"
+            gpre_boot
+        COMMAND gpre_boot
+                ${GPRE_OPT}
+                "${FIREBIRD_SOURCE_DIR}/src/${PREP_FILE}.epp"
+                "${FIREBIRD_GEN_DIR}/${PREP_FILE}.gen"
+                -b "${FIREBIRD_GEN_DIR}/dbs/"
+        COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
+            if (-not (Test-Path -Path ${FIREBIRD_GEN_DIR}/${PREP_FILE}.cpp) -or (Compare-Object -ReferenceObject $$(Get-Content ${FIREBIRD_GEN_DIR}/${PREP_FILE}.gen) -DifferenceObject $$(Get-Content ${FIREBIRD_GEN_DIR}/${PREP_FILE}.cpp))) { \
+                Move-Item -Force -Path ${FIREBIRD_GEN_DIR}/${PREP_FILE}.gen -Destination ${FIREBIRD_GEN_DIR}/${PREP_FILE}.cpp \
+            } else { \
+                Remove-Item -Path ${FIREBIRD_GEN_DIR}/${PREP_FILE}.gen \
+            }"
+        COMMENT "Processing ${FIREBIRD_SOURCE_DIR}/src/${PREP_FILE}.epp"
+    )
+    set_source_files_properties(
+        "${FIREBIRD_GEN_DIR}/${PREP_FILE}.cpp"
+        PROPERTIES GENERATED TRUE
+    )
+endfunction()
+
+foreach(PREP_FILE IN ITEMS
+    "burp/backup"
+    "burp/restore"
+    "burp/OdsDetection")
+
+    preprocess("burp" "${PREP_FILE}" "-lang_internal;-n;-ids;-ocxx;-m")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "isql/extract"
+    "isql/isql"
+    "isql/show")
+
+    preprocess("isql" "${PREP_FILE}" "-lang_internal;-n;-ids;-ocxx")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "utilities/gstat/dba")
+
+    preprocess("utilities/gstat" "${PREP_FILE}" "-lang_internal;-n;-m")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "alice/alice_meta")
+
+    preprocess("alice" "${PREP_FILE}" "-n;-m")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "yvalve/array"
+    "yvalve/blob")
+
+    preprocess("yvalve" "${PREP_FILE}" "-n;-m")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "dsql/metd"
+    "dsql/DdlNodes"
+    "dsql/PackageNodes")
+
+    preprocess("dsql" "${PREP_FILE}" "-n;-ids;-gds_cxx")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "gpre/std/gpre_meta")
+
+    preprocess("gpre/std" "${PREP_FILE}" "-n;-m")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "jrd/dfw"
+    "jrd/dpm"
+    "jrd/dyn_util"
+    "jrd/fun"
+    "jrd/grant"
+    "jrd/ini"
+    "jrd/met"
+    "jrd/scl"
+    "jrd/Function")
+
+    preprocess("jrd" "${PREP_FILE}" "-n;-ids;-gds_cxx")
+endforeach()
+
+foreach(PREP_FILE IN ITEMS
+    "utilities/stats")
+
+    preprocess("utilities" "${PREP_FILE}" "-n;-m")
+endforeach()
+
+# alice
+add_library(alice STATIC)
+target_compile_definitions(alice
+    PRIVATE
+        DEV_BUILD
+)
+target_include_directories(alice
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+)
+target_sources(alice
+    PRIVATE
+        "${FIREBIRD_GEN_DIR}/alice/alice_meta.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/src/alice/alice.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/alice/exe.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/alice/tdr.cpp"
+)
+
+# burp
+add_library(burp STATIC)
+target_compile_definitions(burp
+    PRIVATE
+        DEV_BUILD
+)
+target_include_directories(burp
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+        "${FIREBIRD_SOURCE_DIR}/extern/re2"
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib"
+)
+target_sources(burp
+    PRIVATE
+        "${FIREBIRD_GEN_DIR}/burp/backup.cpp"
+        "${FIREBIRD_GEN_DIR}/burp/OdsDetection.cpp"
+        "${FIREBIRD_GEN_DIR}/burp/restore.cpp"
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
+
+        "${FIREBIRD_SOURCE_DIR}/src/burp/burp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/burp/canonical.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/burp/misc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/burp/mvol.cpp"
+)
+
+# remote
+add_library(remote STATIC)
+target_compile_definitions(remote
+    PRIVATE
+        DEV_BUILD
+)
+target_link_libraries(remote
+    PRIVATE
+        ws2_32
+        mpr
+)
+target_include_directories(remote
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib"
+        "${FIREBIRD_SOURCE_DIR}/extern/libtommath"
+)
+target_sources(remote
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
+
+        "${FIREBIRD_SOURCE_DIR}/src/auth/SecureRemotePassword/srp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/inet.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/merge.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/os/win32/xnet.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/parser.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/protocol.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/remote.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/os/win32/wnet.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/auth/trusted/AuthSspi.cpp"
+)
+
+# yvalve
+add_library(yvalve SHARED)
+SET_TARGET_PROPERTIES(yvalve PROPERTIES OUTPUT_NAME fbclient)
+target_compile_definitions(yvalve
+    PRIVATE
+        SUPERSERVER
+        DEV_BUILD
+)
+target_link_libraries(yvalve
+    PRIVATE
+        common
+        remote
+)
+target_include_directories(yvalve
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib"
+        "${FIREBIRD_SOURCE_DIR}/extern/libtommath"
+)
+target_sources(yvalve
+    PRIVATE
+        "${FIREBIRD_GEN_DIR}/yvalve/array.cpp"
+        "${FIREBIRD_GEN_DIR}/yvalve/blob.cpp"
+        "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
+
+        "${FIREBIRD_SOURCE_DIR}/src/auth/SecureRemotePassword/client/SrpClient.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/auth/SecurityDatabase/LegacyClient.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/os/win32/ibinitdll.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/plugins/crypt/arc4/Arc4.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/client/BlrFromMessage.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/remote/client/interface.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/alt.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/config/os/win32/config_root.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/DistributedTransaction.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/gds.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/keywordsStub.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/MasterImplementation.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/perf.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/PluginManager.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/preparse.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/user_dsql.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/utl.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/yvalve/why.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/firebird.def"
+)
+
+# engine
+add_library(engine SHARED)
+SET_TARGET_PROPERTIES(engine PROPERTIES OUTPUT_NAME engine13)
+target_compile_definitions(engine
+    PRIVATE
+        SUPERSERVER
+        DEV_BUILD
+        NAMESPACE=Vulcan
+)
+target_link_libraries(engine
+    PRIVATE
+        mpr
+        alice
+        burp
+        common
+        yvalve
+)
+target_include_directories(engine
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/jrd"
+        "${FIREBIRD_SOURCE_DIR}/extern/libtomcrypt/src/headers"
+)
+target_sources(engine
+    PRIVATE
+        "${FIREBIRD_GEN_DIR}/dsql/DdlNodes.cpp"
+        "${FIREBIRD_GEN_DIR}/dsql/metd.cpp"
+        "${FIREBIRD_GEN_DIR}/dsql/PackageNodes.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/dfw.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/dpm.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/dyn_util.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/fun.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/Function.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/grant.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/ini.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/met.cpp"
+        "${FIREBIRD_GEN_DIR}/jrd/scl.cpp"
+        "${FIREBIRD_GEN_DIR}/utilities/gstat/dba.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/AggNodes.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/BlrDebugWriter.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/BoolNodes.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/ddl.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/dsql.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/DsqlBatch.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/DsqlCompilerScratch.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/DsqlCursor.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/DSqlDataTypeUtil.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/errd.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/ExprNodes.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/gen.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/make.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/movd.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/parse.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/Parser.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/pass1.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/StmtNodes.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/utld.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/dsql/WinNodes.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Attachment.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/blb.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/blob_filter.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/btn.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/btr.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/builtin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/cch.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/cmp.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Coercion.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Collation.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/ConfigTable.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/CryptoManager.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/cvt.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/cvt2.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Database.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/DataTypeUtil.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/DbCreators.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/DebugInterface.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/err.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/event.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/evl.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/exe.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/ext.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/extds/ExtDS.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/extds/InternalDS.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/extds/IscDS.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/extds/ValidatePassword.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/ExtEngineManager.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/filters.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/flu.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/GarbageCollector.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/GlobalRWLock.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/idx.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/inf.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/intl.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/IntlManager.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/intl_builtin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/jrd.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/JrdStatement.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/lck.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Mapping.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/MetaName.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Monitoring.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/mov.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/nbak.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/nodebug.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/ods.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/opt.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Optimizer.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/os/win32/winnt.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/pag.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/par.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/PreparedStatement.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/RandomGenerator.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/RecordBuffer.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/RecordSourceNodes.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/AggregatedStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/BitmapTableScan.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/BufferedStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/ConditionalStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/Cursor.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/ExternalTableScan.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/FilteredStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/FirstRowsStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/FullOuterJoin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/FullTableScan.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/HashJoin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/IndexTableScan.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/LockedStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/MergeJoin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/NestedLoopJoin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/ProcedureScan.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/RecordSource.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/RecursiveStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/SingularStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/SkipRowsStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/SortedStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/Union.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/VirtualTableScan.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/recsrc/WindowedStream.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/Applier.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/ChangeLog.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/Config.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/Manager.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/Publisher.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/Replicator.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/replication/Utils.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Relation.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/ResultSet.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/rlck.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Routine.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/rpb_chain.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/RuntimeStatistics.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/Savepoint.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/sdw.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/shut.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/sort.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/sqz.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/svc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/SysFunction.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/SystemPackages.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/TempSpace.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/TimeZone.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/tpc.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/tra.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceCmdLine.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceConfigStorage.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceLog.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceManager.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceObjects.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceService.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/UserManagement.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/validation.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/vio.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/VirtualTable.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/lock/lock.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/gsec/gsec.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/gstat/ppg.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/nbackup/nbackup.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
 )

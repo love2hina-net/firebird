@@ -25,7 +25,7 @@
 #define JRD_SQZ_H
 
 #include "../include/fb_blk.h"
-#include "../../common/classes/array.h"
+#include "../common/classes/array.h"
 
 namespace Jrd
 {
