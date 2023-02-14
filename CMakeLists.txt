@@ -39,7 +39,7 @@ if(WIN32)
     # tzdata
     message(STATUS "Extracting tzdata")
     file(MAKE_DIRECTORY ${FIREBIRD_TEMP_DIR}/tzdata)
-    set(TZD_EXTRACT "Expand-Archive -Path ${FIREBIRD_SOURCE_DIR}/extern/icu/tzdata/le.zip -DestinationPath ${FIREBIRD_TEMP_DIR}/tzdata"
+    set(TZD_EXTRACT "Expand-Archive -Path '${FIREBIRD_SOURCE_DIR}/extern/icu/tzdata/le.zip' -DestinationPath '${FIREBIRD_TEMP_DIR}/tzdata'"
         CACHE STRING "tzdata extraction variable")
     execute_process(COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "${TZD_EXTRACT}")
 endif()
@@ -749,11 +749,11 @@ add_custom_command(
         "${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y"
         "${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske"
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
-        (Get-Content -Path ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y) | \
+        (Get-Content -Path '${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y') | \
         foreach { if ($_ -match '%type .*') { Write-Output $_ }} | \
         Set-Content -Path types.y"
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
-        (Get-Content -Path ${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y) | \
+        (Get-Content -Path '${FIREBIRD_SOURCE_DIR}/src/dsql/parse.y') | \
         foreach { if (-not ($_ -match '%type .*')) { Write-Output $_ }} | \
         Set-Content -Path y.y"
     COMMAND btyacc -l -d -S "${FIREBIRD_SOURCE_DIR}/src/dsql/btyacc_fb.ske" y.y
@@ -1146,7 +1146,7 @@ target_sources(yvalve_boot
         "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/firebird.def"
 )
 add_library(yvalve SHARED)
-set_target_properties(yvalve_boot PROPERTIES OUTPUT_NAME "master/fbclient")
+set_target_properties(yvalve PROPERTIES OUTPUT_NAME "master/fbclient")
 target_set_resource(yvalve "fbclient")
 target_compile_definitions(yvalve
     PRIVATE
@@ -1193,6 +1193,7 @@ target_sources(yvalve
 
 # engine
 add_library(engine_boot SHARED)
+set_target_properties(engine_boot PROPERTIES OUTPUT_NAME "boot/engine13")
 target_set_resource(engine_boot "engine13")
 target_compile_definitions(engine_boot
     PRIVATE
@@ -1373,6 +1374,7 @@ target_sources(engine_boot
 
 # gbak
 add_executable(gbak_boot)
+set_target_properties(gbak_boot PROPERTIES OUTPUT_NAME "boot/gbak")
 target_set_resource(gbak_boot "gbak")
 target_compile_definitions(gbak_boot
     PRIVATE
@@ -1415,6 +1417,7 @@ target_sources(gpre
 
 # isql
 add_executable(isql_boot)
+set_target_properties(isql_boot PROPERTIES OUTPUT_NAME "boot/isql")
 target_set_resource(isql_boot "isql")
 target_compile_definitions(isql_boot
     PRIVATE
@@ -1456,7 +1459,6 @@ add_custom_command(
         "${FIREBIRD_EXEC_DIR}/boot/isql.exe"
         "${FIREBIRD_GEN_DIR}/dbs"
         "${FIREBIRD_SOURCE_DIR}/src/dbs/security.sql"
-        "${FIREBIRD_OUTPUT_DIR}/firebird.conf"
     COMMAND ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/SECURITY4.FDB" "${FIREBIRD_GEN_DIR}/dbs/SECURITY.FDB"
     COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
         [string[]] $sql = @(\"CREATE DATABASE '${FIREBIRD_GEN_DIR}/dbs/SECURITY4.FDB' PAGE_SIZE 8192;\"); \
@@ -1474,8 +1476,7 @@ add_custom_command(
         "${FIREBIRD_EXEC_DIR}/boot/gbak.exe"
         "${FIREBIRD_GEN_DIR}/dbs"
         "${FIREBIRD_SOURCE_DIR}/builds/misc/metadata.gbak"
-        "${FIREBIRD_OUTPUT_DIR}/firebird.conf"
-    COMMAND ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/METADATA.FDB"
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/METADATA.FDB" "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk"
     COMMAND "${FIREBIRD_EXEC_DIR}/boot/gbak.exe" -r "${FIREBIRD_SOURCE_DIR}/builds/misc/metadata.gbak" "${FIREBIRD_GEN_DIR}/dbs/METADATA.FDB"
     COMMAND ${CMAKE_COMMAND} -E copy "${FIREBIRD_GEN_DIR}/dbs/METADATA.FDB" "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk"
     COMMENT "Create METADATA.FDB"
@@ -1520,7 +1521,6 @@ add_custom_command(
         "${FIREBIRD_EXEC_DIR}/boot/gbak.exe"
         "${FIREBIRD_GEN_DIR}/dbs"
         "${FIREBIRD_SOURCE_DIR}/builds/misc/help.gbak"
-        "${FIREBIRD_OUTPUT_DIR}/firebird.conf"
     COMMAND ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/HELP.FDB"
     COMMAND "${FIREBIRD_EXEC_DIR}/boot/gbak.exe" -r "${FIREBIRD_SOURCE_DIR}/builds/misc/help.gbak" "${FIREBIRD_GEN_DIR}/dbs/HELP.FDB"
     COMMENT "Create HELP.FDB"
@@ -1645,7 +1645,47 @@ target_link_libraries(build_msg
 )
 target_sources(build_msg
     PRIVATE
+        "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
+
         "${FIREBIRD_GEN_DIR}/master/msgs/build_file.cpp"
+)
+
+# codes
+add_executable(codes)
+target_set_resource(codes "")
+target_compile_definitions(codes
+    PRIVATE
+        SUPERCLIENT
+)
+target_link_libraries(codes
+    PRIVATE
+        yvalve
+)
+target_sources(build_msg
+    PRIVATE
+        "${FIREBIRD_GEN_DIR}/master/misc/codes.cpp"
+)
+
+# message
+add_custom_command(
+    OUTPUT "${FIREBIRD_EXEC_DIR}/master/firebird.msg"
+    DEPENDS
+        build_msg
+        "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
+    COMMAND build_msg -D "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB" -p "${FIREBIRD_GEN_DIR}" -f firebird.msg
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different firebird.msg "${FIREBIRD_EXEC_DIR}/master/firebird.msg"
+    COMMENT "Building message file..."
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT
+        "${FIREBIRD_GEN_DIR}/include/gds_codes.ftn" # ‰¼
+    DEPENDS
+        codes
+        "${FIREBIRD_GEN_DIR}/include"
+    COMMAND codes "${FIREBIRD_GEN_DIR}/include" "${FIREBIRD_SOURCE_DIR}/lang_helpers"
+    COMMENT "Building codes header..."
+    VERBATIM
 )
 
 # gfix

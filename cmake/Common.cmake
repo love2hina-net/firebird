@@ -11,11 +11,6 @@ endif()
 
 # resource
 function(target_set_resource target outname)
-    if ("$<BOOL:${outname}>")
-        get_target_property(outputname ${target} OUTPUT_NAME)
-        set(outname "$<PATH:GET_FILENAME,${outputname}>")
-    endif()
-
     get_target_property(type ${target} TYPE)
     if("${type}" STREQUAL "SHARED_LIBRARY")
         set(extention ".dll")
@@ -73,6 +68,12 @@ add_custom_command(
     OUTPUT "${FIREBIRD_GEN_DIR}/dbs"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${FIREBIRD_GEN_DIR}/dbs"
     COMMENT "Creating directory: ${FIREBIRD_GEN_DIR}/dbs"
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT "${FIREBIRD_GEN_DIR}/include"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${FIREBIRD_GEN_DIR}/include"
+    COMMENT "Creating directory: ${FIREBIRD_GEN_DIR}/include"
     VERBATIM
 )
 
@@ -161,7 +162,7 @@ set_source_files_properties(
 # preprocess
 function(preprocess PREP_TYPE PREP_DIR PREP_FILE GPRE_OPT)
     if(${PREP_TYPE} STRLESS_EQUAL "boot")
-        set(GPRE_EXE gpre_boot)
+        set(GPRE_EXE "$<TARGET_FILE:gpre_boot>")
         set(BASE_DIR "boot")
         set(META_FDB "")
     else()
@@ -178,16 +179,19 @@ function(preprocess PREP_TYPE PREP_DIR PREP_FILE GPRE_OPT)
             "${FIREBIRD_GEN_DIR}/dbs"
             ${GPRE_EXE}
             ${META_FDB}
-        COMMAND ${GPRE_EXE}
-                ${GPRE_OPT}
-                "${FIREBIRD_SOURCE_DIR}/src/${PREP_DIR}/${PREP_FILE}.epp"
-                "${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen"
-                -b "${FIREBIRD_GEN_DIR}/dbs/"
         COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
-            if (-not (Test-Path -Path ${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp) -or (Compare-Object -ReferenceObject $(Get-Content ${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen) -DifferenceObject $(Get-Content ${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp))) { \
-                Move-Item -Force -Path ${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen -Destination ${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp \
-            } else { \
-                Remove-Item -Path ${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen \
+            $mutex = New-Object -TypeName 'System.Threading.Mutex' -ArgumentList @($false, 'Global\\firebird_gpre');\
+            $mutex.WaitOne();\
+            & '${GPRE_EXE}' $<JOIN:${GPRE_OPT}, >\
+            '${FIREBIRD_SOURCE_DIR}/src/${PREP_DIR}/${PREP_FILE}.epp'\
+            '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen'\
+            -b '${FIREBIRD_GEN_DIR}/dbs/' || throw;\
+            $mutex.ReleaseMutex();\
+            if (-not (Test-Path -Path '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp') -or \
+               (Compare-Object -ReferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen') -DifferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp'))) {\
+                Move-Item -Force -Path '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen' -Destination '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp'\
+            } else {\
+                Remove-Item -Path '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen'\
             }"
         COMMENT "Processing ${FIREBIRD_SOURCE_DIR}/src/${PREP_DIR}/${PREP_FILE}.epp"
         VERBATIM
