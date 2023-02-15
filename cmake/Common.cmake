@@ -10,7 +10,13 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
 endif()
 
 # resource
-function(target_set_resource target outname)
+function(target_resource target)
+    cmake_parse_arguments(RES "" "OUTPUT_NAME" "" ${ARGN})
+
+    if(NOT DEFINED RES_OUTPUT_NAME)
+        set(RES_OUTPUT_NAME ${target})
+    endif()
+
     get_target_property(type ${target} TYPE)
     if("${type}" STREQUAL "SHARED_LIBRARY")
         set(extention ".dll")
@@ -21,9 +27,9 @@ function(target_set_resource target outname)
     target_compile_definitions(${target}
         PRIVATE
             "${RC_ARCH}"
-            "RC_TARGET_$<IF:$<BOOL:${outname}>,${outname},${target}>"
-            "RC_TARGET_NAME=$<IF:$<BOOL:${outname}>,${outname},${target}>"
-            "RC_TARGET_FILENAME=$<IF:$<BOOL:${outname}>,${outname},${target}>${extention}"
+            "RC_TARGET_${RES_OUTPUT_NAME}"
+            "RC_TARGET_NAME=${RES_OUTPUT_NAME}"
+            "RC_TARGET_FILENAME=${RES_OUTPUT_NAME}${extention}"
     )
     target_sources(${target}
         PRIVATE
@@ -95,6 +101,94 @@ foreach(DIR IN ITEMS
     )
 endforeach()
 
+# add_library
+function (add_dual_library target type)
+    cmake_parse_arguments(LIB "" "OUTPUT_NAME" "" ${ARGN})
+    if(NOT DEFINED LIB_OUTPUT_NAME)
+        set(LIB_OUTPUT_NAME ${target})
+    endif()
+
+    foreach(BASE IN ITEMS "boot" "master")
+        add_library("${target}_${BASE}" ${type})
+        set_target_properties("${target}_${BASE}" PROPERTIES OUTPUT_NAME "${BASE}/${LIB_OUTPUT_NAME}")
+    endforeach()
+endfunction()
+
+# add_executable
+function (add_dual_executable target)
+    cmake_parse_arguments(EXE "WIN32;MACOSX_BUNDLE" "OUTPUT_NAME" "" ${ARGN})
+    if(EXE_WIN32)
+        list(APPEND EXE_FLAGS "WIN32")
+    endif()
+    if(EXE_MACOSX_BUNDLE)
+        list(APPEND EXE_FLAGS "MACOSX_BUNDLE")
+    endif()
+    if(NOT DEFINED EXE_OUTPUT_NAME)
+        set(EXE_OUTPUT_NAME ${target})
+    endif()
+
+    foreach(BASE IN ITEMS "boot" "master")
+        add_executable("${target}_${BASE}" ${EXE_FLAGS})
+        set_target_properties("${target}_${BASE}" PROPERTIES OUTPUT_NAME "${BASE}/${EXE_OUTPUT_NAME}")
+    endforeach()
+endfunction()
+
+# target_resource
+function(target_dual_resource target)
+    cmake_parse_arguments(RES "" "OUTPUT_NAME" "" ${ARGN})
+
+    if(NOT DEFINED RES_OUTPUT_NAME)
+        set(RES_OUTPUT_NAME ${target})
+    endif()
+    foreach(BASE IN ITEMS "boot" "master")
+        target_resource("${target}_${BASE}" OUTPUT_NAME ${RES_OUTPUT_NAME})
+    endforeach()
+endfunction()
+
+# target_compile_definitions
+function (target_dual_compile_definitions target)
+    cmake_parse_arguments(DEF "" "" "INTERFACE;PUBLIC;PRIVATE" ${ARGN})
+
+    foreach(BASE IN ITEMS "boot" "master")
+        target_compile_definitions("${target}_${BASE}"
+            INTERFACE ${DEF_INTERFACE}
+            PUBLIC ${DEF_PUBLIC}
+            PRIVATE ${DEF_PRIVATE})
+    endforeach()
+endfunction()
+
+# target_include_directories
+function (target_dual_include_directories target)
+    cmake_parse_arguments(INC "" "" "INTERFACE;PUBLIC;PRIVATE" ${ARGN})
+
+    foreach(BASE IN ITEMS "boot" "master")
+        target_include_directories("${target}_${BASE}"
+            INTERFACE ${INC_INTERFACE}
+            PUBLIC ${INC_PUBLIC}
+            PRIVATE ${INC_PRIVATE})
+    endforeach()
+endfunction()
+
+# target_sources
+function (target_dual_sources target)
+    cmake_parse_arguments(SRC "" ""
+        "INTERFACE;PUBLIC;PRIVATE;ROOT_INTERFACE;ROOT_PUBLIC;ROOT_PRIVATE;GEN_INTERFACE;GEN_PUBLIC;GEN_PRIVATE" ${ARGN})
+
+    list(TRANSFORM SRC_ROOT_INTERFACE PREPEND "${FIREBIRD_SOURCE_DIR}/")
+    list(TRANSFORM SRC_ROOT_PUBLIC    PREPEND "${FIREBIRD_SOURCE_DIR}/")
+    list(TRANSFORM SRC_ROOT_PRIVATE   PREPEND "${FIREBIRD_SOURCE_DIR}/")
+    foreach(BASE IN ITEMS "boot" "master")
+        list(TRANSFORM SRC_GEN_INTERFACE PREPEND "${FIREBIRD_GEN_DIR}/${BASE}/" OUTPUT_VARIABLE SET_GEN_INTERFACE)
+        list(TRANSFORM SRC_GEN_PUBLIC}   PREPEND "${FIREBIRD_GEN_DIR}/${BASE}/" OUTPUT_VARIABLE SET_GEN_PUBLIC)
+        list(TRANSFORM SRC_GEN_PRIVATE   PREPEND "${FIREBIRD_GEN_DIR}/${BASE}/" OUTPUT_VARIABLE SET_GEN_PRIVATE)
+
+        target_sources("${target}_${BASE}"
+            INTERFACE ${SRC_INTERFACE} ${SRC_ROOT_INTERFACE} ${SET_GEN_INTERFACE}
+            PUBLIC ${SRC_PUBLIC} ${SRC_ROOT_PUBLIC} ${SET_GEN_PUBLIC}
+            PRIVATE ${SRC_PRIVATE} ${SRC_ROOT_PRIVATE} ${SET_GEN_PRIVATE})
+    endforeach()
+endfunction()
+
 # yvalve
 add_custom_command(
     OUTPUT "${FIREBIRD_EXEC_DIR}/boot/fbclient.dll"
@@ -131,11 +225,11 @@ add_custom_command(
 add_custom_command(
     OUTPUT "${FIREBIRD_EXEC_DIR}/boot/gpre.exe"
     DEPENDS
-        gpre
+        gpre_master
         "${FIREBIRD_EXEC_DIR}/boot"
         "${FIREBIRD_EXEC_DIR}/boot/fbclient.dll"
         "${FIREBIRD_EXEC_DIR}/boot/plugins/engine13.dll"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre>" "${FIREBIRD_EXEC_DIR}/boot/gpre.exe"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_master>" "${FIREBIRD_EXEC_DIR}/boot/gpre.exe"
     VERBATIM
 )
 
@@ -168,7 +262,7 @@ function(preprocess PREP_TYPE PREP_DIR PREP_FILE GPRE_OPT)
     else()
         set(GPRE_EXE "${FIREBIRD_EXEC_DIR}/boot/gpre.exe")
         set(BASE_DIR "master")
-        set(META_FDB "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk")
+        set(META_FDB "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk;${FIREBIRD_GEN_DIR}/dbs/MSG.FDB;${FIREBIRD_GEN_DIR}/dbs/HELP.FDB")
     endif()
 
     add_custom_command(
@@ -181,19 +275,19 @@ function(preprocess PREP_TYPE PREP_DIR PREP_FILE GPRE_OPT)
             ${META_FDB}
         COMMAND pwsh.exe -ExecutionPolicy Bypass -Command "\
             $mutex = New-Object -TypeName 'System.Threading.Mutex' -ArgumentList @($false, 'Global\\firebird_gpre');\
-            $mutex.WaitOne();\
+            [void] $mutex.WaitOne();\
             & '${GPRE_EXE}' $<JOIN:${GPRE_OPT}, >\
             '${FIREBIRD_SOURCE_DIR}/src/${PREP_DIR}/${PREP_FILE}.epp'\
             '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen'\
-            -b '${FIREBIRD_GEN_DIR}/dbs/' || throw;\
-            $mutex.ReleaseMutex();\
+            -b '${FIREBIRD_GEN_DIR}/dbs/';\
+            [void] $mutex.ReleaseMutex();\
             if (-not (Test-Path -Path '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp') -or \
                (Compare-Object -ReferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen') -DifferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp'))) {\
                 Move-Item -Force -Path '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen' -Destination '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.cpp'\
             } else {\
                 Remove-Item -Path '${FIREBIRD_GEN_DIR}/${BASE_DIR}/${PREP_DIR}/${PREP_FILE}.gen'\
             }"
-        COMMENT "Processing ${FIREBIRD_SOURCE_DIR}/src/${PREP_DIR}/${PREP_FILE}.epp"
+        COMMENT "Processing ${PREP_TYPE}: ${FIREBIRD_SOURCE_DIR}/src/${PREP_DIR}/${PREP_FILE}.epp"
         VERBATIM
     )
     set_source_files_properties(
