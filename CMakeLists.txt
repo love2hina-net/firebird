@@ -2007,25 +2007,215 @@ target_sources(instclient
 )
 
 # fbrmclib
+if(${PLATFORM} STREQUAL "x86")
+    add_library(fbrmclib SHARED)
+    target_resource(fbrmclib)
+    target_compile_definitions(fbrmclib
+        PRIVATE
+            DEV_BUILD
+            SUPERCLIENT
+            CLIENT
+            GDS32_EXPORTS
+    )
+    target_link_libraries(fbrmclib
+        PRIVATE
+            common
+            yvalve_master
+    )
+    target_sources(fbrmclib
+        PRIVATE
+            "${FIREBIRD_SOURCE_DIR}/src/gpre/languages/fbrmclib.cpp"
+    )
+endif()
 
 # fbsvcmgr
+add_executable(fbsvcmgr)
+target_resource(fbsvcmgr)
+target_compile_definitions(fbsvcmgr
+    PRIVATE
+        SUPERCLIENT
+        CLIENT
+        DEV_BUILD
+)
+target_link_libraries(fbsvcmgr
+    PRIVATE
+        common
+        yvalve_master
+)
+target_sources(fbsvcmgr
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/fbsvcmgr/fbsvcmgr.cpp"
+)
 
 # fbtrace
+add_library(fbtrace SHARED)
+target_resource(fbtrace)
+target_compile_definitions(fbtrace
+    PRIVATE
+        DEV_BUILD
+        SUPERCLIENT
+        FBTRACE_EXPORTS
+        NAMESPACE=Vulcan
+)
+target_link_libraries(fbtrace
+    PRIVATE
+        common
+        yvalve_master
+)
+target_include_directories(fbtrace
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include/gen"
+)
+target_sources(fbtrace
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/ntrace/os/win32/platform.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/ntrace/PluginLogWriter.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/ntrace/TraceConfiguration.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/ntrace/traceplugin.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/ntrace/TracePluginImpl.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+)
 
 # fbtracemgr
+add_executable(fbtracemgr)
+target_resource(fbtracemgr)
+target_compile_definitions(fbtracemgr
+    PRIVATE
+        SUPERCLIENT
+        CLIENT
+        DEV_BUILD
+)
+target_link_libraries(fbtracemgr
+    PRIVATE
+        common
+        yvalve_master
+)
+target_include_directories(fbtracemgr
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include/gen"
+)
+target_sources(fbtracemgr
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/utilities/fbtracemgr/traceMgrMain.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/jrd/trace/TraceCmdLine.cpp"
+)
 
 # udr_engine
+add_library(udr_engine SHARED)
+target_resource(udr_engine)
+target_compile_definitions(udr_engine
+    PRIVATE
+        WINDOWS_ONLY
+        DEV_BUILD
+        SUPERCLIENT
+)
+target_link_libraries(udr_engine
+    PRIVATE
+        common
+        yvalve_master
+)
+target_sources(udr_engine
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/plugins/udr_engine/UdrEngine.cpp"
 
-# gpre_common
-
-# yvalve
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+)
 
 # legacy_usermanager
+add_library(legacy_usermanager SHARED)
+target_resource(legacy_usermanager)
+target_compile_definitions(legacy_usermanager
+    PRIVATE
+        DEV_BUILD
+)
+target_link_libraries(legacy_usermanager
+    PRIVATE
+        common
+        yvalve_master
+)
+target_sources(legacy_usermanager
+    PRIVATE
+        "${FIREBIRD_GEN_DIR}/master/auth/SecurityDatabase/LegacyManagement.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+)
 
 # srp
+add_library(srp SHARED)
+target_resource(srp)
+target_compile_definitions(srp
+    PRIVATE
+        DEV_BUILD
+)
+target_link_libraries(srp
+    PRIVATE
+        common
+        remote
+        yvalve_master
+)
+target_sources(srp
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/auth/SecureRemotePassword/manage/SrpManagement.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+)
 
 # legacy_auth
+add_library(legacy_auth SHARED)
+target_resource(legacy_auth)
+target_compile_definitions(legacy_auth
+    PRIVATE
+        DEV_BUILD
+)
+target_link_libraries(legacy_auth
+    PRIVATE
+        common
+        yvalve_master
+)
+target_sources(legacy_auth
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/auth/SecDbCache.cpp"
+        "${FIREBIRD_SOURCE_DIR}/src/auth/SecurityDatabase/LegacyServer.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+)
 
 # udf_compat
+add_library(udf_compat SHARED)
+target_resource(udf_compat)
+target_compile_definitions(udf_compat
+    PRIVATE
+        DEV_BUILD
+        SUPERCLIENT
+        FBUDF_EXPORTS
+)
+target_include_directories(udf_compat
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/include"
+)
+target_sources(udf_compat
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/extlib/UdfBackwardCompatibility.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/udr_plugin.def"
+)
 
 # chacha
+add_library(chacha SHARED)
+target_resource(chacha)
+target_compile_definitions(chacha
+    PRIVATE
+        DEV_BUILD
+)
+target_link_libraries(chacha
+    PRIVATE
+        common
+        yvalve_master
+)
+target_sources(chacha
+    PRIVATE
+        "${FIREBIRD_SOURCE_DIR}/src/plugins/crypt/chacha/ChaCha.cpp"
+
+        "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+)
