@@ -5,6 +5,29 @@
 ################################################################################
 
 ################################################################################
+# configurations
+################################################################################
+# 中間出力先
+set(FIREBIRD_OUTPUT_DIR "${FIREBIRD_BINARY_DIR}/output")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${FIREBIRD_OUTPUT_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${FIREBIRD_OUTPUT_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${FIREBIRD_OUTPUT_DIR})
+
+# 配置先
+set(FIREBIRD_GEN_DIR "${FIREBIRD_BINARY_DIR}/gen")
+set(FIREBIRD_EXEC_DIR "${FIREBIRD_BINARY_DIR}/exec")
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    # 64 bits
+    set(PLATFORM "x64")
+    set(RC_ARCH "RC_ARH_x64")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    # 32 bits
+    set(PLATFORM "x86")
+    set(RC_ARCH "RC_ARH_x86")
+endif()
+
+################################################################################
 # properties
 ################################################################################
 
@@ -301,6 +324,7 @@ function(fb_target_resources target)
     get_target_property(TGT_BUILDS      "${target}" FB_BUILD_TYPES)
     get_target_property(TGT_OUTPUT_NAME "${target}" OUTPUT_NAME)
 
+    cmake_path(GET TGT_OUTPUT_NAME FILENAME TGT_OUTPUT_NAME)
     get_target_suffix(TGT_SUFFIX "${target}")
 
     foreach(BUILD IN LISTS TGT_BUILDS)

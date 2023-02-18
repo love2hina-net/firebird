@@ -665,6 +665,7 @@ fb_target_include_directories(common
 fb_target_sources(common
     ROOT_PRIVATE
         "extern/zlib/zlib.h"
+        "src/include/firebird/IdlFbInterfaces.h"
         "src/include/gen/parse.h"
 
         "src/common/Auth.cpp"
@@ -1225,7 +1226,9 @@ fb_target_sources(isql
 ################################################################################
 # build_msg
 ################################################################################
-fb_add_executable(build_msg MAIN)
+fb_add_executable(build_msg MAIN
+    LAYOUT_DIR /
+)
 fb_target_resources(build_msg)
 fb_target_compile_definitions(build_msg
     PRIVATE
@@ -1238,9 +1241,6 @@ fb_target_link_libraries(build_msg
         yvalve
 )
 fb_target_sources(build_msg
-    PRIVATE
-        "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
-
     GEN_PRIVATE
         "msgs/build_file.cpp"
 )
@@ -1248,7 +1248,9 @@ fb_target_sources(build_msg
 ################################################################################
 # codes
 ################################################################################
-fb_add_executable(codes MAIN)
+fb_add_executable(codes MAIN
+    LAYOUT_DIR /
+)
 fb_target_resources(codes)
 fb_target_compile_definitions(codes
     PRIVATE
@@ -1463,7 +1465,9 @@ fb_target_sources(gstat
 ################################################################################
 # ib_util
 ################################################################################
-fb_add_library(ib_util SHARED MAIN)
+fb_add_library(ib_util SHARED MAIN
+    LAYOUT_DIR /
+)
 fb_target_resources(ib_util)
 fb_target_include_directories(ib_util
     ROOT_PRIVATE
@@ -1887,7 +1891,9 @@ fb_target_sources(legacy_auth
 ################################################################################
 # udf_compat
 ################################################################################
-fb_add_library(udf_compat SHARED MAIN)
+fb_add_library(udf_compat SHARED MAIN
+    LAYOUT_DIR /plugins/udr
+)
 fb_target_resources(udf_compat)
 fb_target_compile_definitions(udf_compat
     PRIVATE
