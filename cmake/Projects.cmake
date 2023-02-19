@@ -647,24 +647,39 @@ fb_target_compile_definitions(common
 )
 fb_target_link_libraries(common
     PUBLIC
-        ws2_32
-        mpr
         libtommath
         libtomcrypt
         decNumber
         re2
 )
+if(WIN32)
+    fb_target_link_libraries(common
+        PUBLIC
+            ws2_32
+            mpr
+    )
+elseif(APPLE)
+    fb_target_link_libraries(common
+        PRIVATE
+            "-framework CoreFoundation"
+            "-framework Foundation"
+            "-framework Security"
+            iconv
+    )
+endif()
 fb_target_include_directories(common
     ROOT_PUBLIC
         "src/include"
-        "extern/icu/include"
         "extern/re2"
-    ROOT_PRIVATE
-        "extern/zlib"
+    PUBLIC
+        "${ICU_INC_PATH}"
+        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}>
 )
 fb_target_sources(common
+    PRIVATE
+        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}/zlib.h>
+
     ROOT_PRIVATE
-        "extern/zlib/zlib.h"
         "src/include/firebird/IdlFbInterfaces.h"
         "src/include/gen/parse.h"
 
@@ -705,10 +720,6 @@ fb_target_sources(common
         "src/common/config/config_file.cpp"
         "src/common/config/dir_list.cpp"
         "src/common/CRC32C.cpp"
-        # <IntrinsicFunctions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</IntrinsicFunctions>
-        # <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
-        # <IntrinsicFunctions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</IntrinsicFunctions>
-        # <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
         "src/common/cvt.cpp"
         "src/common/db_alias.cpp"
         "src/common/DecFloat.cpp"
@@ -725,12 +736,6 @@ fb_target_sources(common
         "src/common/isc_sync.cpp"
         "src/common/keywords.cpp"
         "src/common/MsgMetadata.cpp"
-        "src/common/os/win32/fbsyslog.cpp"
-        "src/common/os/win32/guid.cpp"
-        "src/common/os/win32/isc_ipc.cpp"
-        "src/common/os/win32/mod_loader.cpp"
-        "src/common/os/win32/os_utils.cpp"
-        "src/common/os/win32/path_utils.cpp"
         "src/common/pretty.cpp"
         "src/common/ScanDir.cpp"
         "src/common/sdl.cpp"
@@ -750,6 +755,35 @@ fb_target_sources(common
         "src/common/utils.cpp"
         "src/common/UtilSvc.cpp"
         "src/common/xdr.cpp"
+)
+if(WIN32)
+    fb_target_sources(common
+        ROOT_PRIVATE
+            "src/common/os/win32/fbsyslog.cpp"
+            "src/common/os/win32/guid.cpp"
+            "src/common/os/win32/isc_ipc.cpp"
+            "src/common/os/win32/mod_loader.cpp"
+            "src/common/os/win32/os_utils.cpp"
+            "src/common/os/win32/path_utils.cpp"
+    )
+elseif(APPLE)
+    fb_target_sources(common
+        ROOT_PRIVATE
+            "src/common/os/posix/divorce.cpp"
+            "src/common/os/posix/fbsyslog.cpp"
+            "src/common/os/posix/guid.cpp"
+            "src/common/os/posix/isc_ipc.cpp"
+            "src/common/os/posix/os_utils.cpp"
+            "src/common/os/posix/path_utils.cpp"
+            "src/common/os/posix/SyncSignals.cpp"
+            "src/common/os/darwin/mod_loader.cpp"
+            "src/common/os/darwin/mac_utils.m"
+    )
+endif()
+set_source_files_properties(
+    "${FIREBIRD_SOURCE_DIR}/src/common/CRC32C.cpp"
+    PROPERTIES
+        COMPILE_OPTIONS "-msse4.2"
 )
 
 ################################################################################
@@ -816,9 +850,10 @@ fb_target_link_libraries(gpre
 fb_target_include_directories(gpre
     ROOT_PRIVATE
         "src/include"
-        "extern/icu/include"
+    PRIVATE
+        "${ICU_INC_PATH}"
 )
-# gpreÇÕbootÇ∆mainÇ≈ÉRÉìÉpÉCÉãì‡óeÇ™àŸÇ»ÇÈ
+# gpre„ÅØboot„Å®main„ÅßÂÜÖÂÆπ„ÅåÁï∞„Å™„Çã
 target_sources(gpre_boot
     PRIVATE
         "${FIREBIRD_SOURCE_DIR}/src/gpre/boot/gpre_meta_boot.cpp"
@@ -874,7 +909,8 @@ fb_target_include_directories(burp
     ROOT_PRIVATE
         "src/include"
         "extern/re2"
-        "extern/zlib"
+    PRIVATE
+        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}>
 )
 fb_target_sources(burp
     GEN_PRIVATE
@@ -882,9 +918,10 @@ fb_target_sources(burp
         "burp/OdsDetection.cpp"
         "burp/restore.cpp"
 
-    ROOT_PRIVATE
-        "extern/zlib/zlib.h"
+    PRIVATE
+        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}/zlib.h>
 
+    ROOT_PRIVATE
         "src/burp/burp.cpp"
         "src/burp/canonical.cpp"
         "src/burp/misc.cpp"
@@ -902,29 +939,36 @@ fb_target_compile_definitions(remote
 fb_target_include_directories(remote
     ROOT_PRIVATE
         "src/include"
-        "extern/zlib"
         "extern/libtommath"
+    PRIVATE
+        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}>
 )
 fb_target_sources(remote
-    ROOT_PRIVATE
-        "extern/zlib/zlib.h"
+    PRIVATE
+        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}/zlib.h>
 
+    ROOT_PRIVATE
         "src/auth/SecureRemotePassword/srp.cpp"
         "src/remote/inet.cpp"
         "src/remote/merge.cpp"
-        "src/remote/os/win32/xnet.cpp"
         "src/remote/parser.cpp"
         "src/remote/protocol.cpp"
         "src/remote/remote.cpp"
-        "src/remote/os/win32/wnet.cpp"
-        "src/auth/trusted/AuthSspi.cpp"
 )
+if(WIN32)
+    fb_target_sources(remote
+        ROOT_PRIVATE
+            "src/remote/os/win32/xnet.cpp"
+            "src/remote/os/win32/wnet.cpp"
+            "src/auth/trusted/AuthSspi.cpp"
+        )
+endif()
 
 ################################################################################
 # yvalve
 ################################################################################
 fb_add_library(yvalve SHARED BOOT MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_LIB}
     OUTPUT_NAME fbclient
 )
 fb_target_resources(yvalve)
@@ -940,8 +984,9 @@ fb_target_link_libraries(yvalve
 )
 fb_target_include_directories(yvalve
     ROOT_PRIVATE
-        "extern/zlib"
         "extern/libtommath"
+        "src/include/gen"
+#        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}>
 )
 fb_target_sources(yvalve
     GEN_PRIVATE
@@ -949,16 +994,14 @@ fb_target_sources(yvalve
         "yvalve/blob.cpp"
 
     ROOT_PRIVATE
-        "extern/zlib/zlib.h"
+#        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}/zlib.h>
 
         "src/auth/SecureRemotePassword/client/SrpClient.cpp"
         "src/auth/SecurityDatabase/LegacyClient.cpp"
-        "src/jrd/os/win32/ibinitdll.cpp"
         "src/plugins/crypt/arc4/Arc4.cpp"
         "src/remote/client/BlrFromMessage.cpp"
         "src/remote/client/interface.cpp"
         "src/yvalve/alt.cpp"
-        "src/yvalve/config/os/win32/config_root.cpp"
         "src/yvalve/DistributedTransaction.cpp"
         "src/yvalve/gds.cpp"
         "src/yvalve/keywordsStub.cpp"
@@ -969,15 +1012,32 @@ fb_target_sources(yvalve
         "src/yvalve/user_dsql.cpp"
         "src/yvalve/utl.cpp"
         "src/yvalve/why.cpp"
-
-        "builds/win32/defs/firebird.def"
 )
+if(WIN32)
+    fb_target_sources(yvalve
+        ROOT_PRIVATE
+            "src/jrd/os/win32/ibinitdll.cpp"
+            "src/yvalve/config/os/win32/config_root.cpp"
+
+            "builds/win32/defs/firebird.def"
+    )
+elseif(APPLE)
+    fb_target_sources(yvalve
+        ROOT_PRIVATE
+            "src/yvalve/config/os/posix/binreloc.c"
+            "src/yvalve/config/os/darwin/config_root.cpp"
+    )
+    set_target_properties(yvalve_boot
+        PROPERTIES
+            LINK_OPTIONS "LINKER:-exported_symbols_list,${FIREBIRD_SOURCE_DIR}/gen/firebird.vers"
+    )
+endif()
 
 ################################################################################
 # engine
 ################################################################################
 fb_add_library(engine SHARED BOOT MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
     OUTPUT_NAME engine13
 )
 fb_target_resources(engine)
@@ -1086,7 +1146,6 @@ fb_target_sources(engine
         "src/jrd/ods.cpp"
         "src/jrd/opt.cpp"
         "src/jrd/Optimizer.cpp"
-        "src/jrd/os/win32/winnt.cpp"
         "src/jrd/pag.cpp"
         "src/jrd/par.cpp"
         "src/jrd/PreparedStatement.cpp"
@@ -1156,15 +1215,26 @@ fb_target_sources(engine
         "src/utilities/gsec/gsec.cpp"
         "src/utilities/gstat/ppg.cpp"
         "src/utilities/nbackup/nbackup.cpp"
-
-        "builds/win32/defs/plugin.def"
 )
+if(WIN32)
+    fb_target_sources(engine
+        ROOT_PRIVATE
+            "src/jrd/os/win32/winnt.cpp"
+
+            "builds/win32/defs/plugin.def"
+    )
+elseif(APPLE)
+    fb_target_sources(engine
+        ROOT_PRIVATE
+            "src/jrd/os/posix/unix.cpp"
+    )
+endif()
 
 ################################################################################
 # gbak
 ################################################################################
 fb_add_executable(gbak BOOT MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
     GEN_DEPENDS
         yvalve
         engine
@@ -1191,7 +1261,7 @@ fb_target_sources(gbak
 # isql
 ################################################################################
 fb_add_executable(isql BOOT MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
     GEN_DEPENDS
         yvalve
         engine
@@ -1217,17 +1287,21 @@ fb_target_sources(isql
     ROOT_PRIVATE
         "src/isql/ColList.cpp"
         "src/isql/Extender.cpp"
-        "src/common/fb_exception.cpp"
+#        "src/common/fb_exception.cpp"
         "src/isql/InputDevices.cpp"
         "src/isql/iutils.cpp"
         "src/isql/OptionsBase.cpp"
+)
+set_target_properties(isql_boot
+    PROPERTIES
+        LINK_OPTIONS "LINKER:-exported_symbols_list,${FIREBIRD_SOURCE_DIR}/gen/empty.vers"
 )
 
 ################################################################################
 # build_msg
 ################################################################################
 fb_add_executable(build_msg MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(build_msg)
 fb_target_compile_definitions(build_msg
@@ -1249,7 +1323,7 @@ fb_target_sources(build_msg
 # codes
 ################################################################################
 fb_add_executable(codes MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(codes)
 fb_target_compile_definitions(codes
@@ -1273,7 +1347,7 @@ fb_target_sources(codes
 # fb_lock_print
 ################################################################################
 fb_add_executable(fb_lock_print MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(fb_lock_print)
 fb_target_compile_definitions(fb_lock_print
@@ -1323,7 +1397,7 @@ fb_target_sources(fbguard
 # fbserver
 ################################################################################
 fb_add_executable(fbserver WIN32 MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
     OUTPUT_NAME firebird
 )
 fb_target_compile_definitions(fbserver
@@ -1341,7 +1415,7 @@ fb_target_link_libraries(fbserver
 )
 fb_target_include_directories(fbserver
     ROOT_PRIVATE
-        "extern/zlib"
+#        $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}>
 )
 fb_target_sources(fbserver
     ROOT_PRIVATE
@@ -1364,7 +1438,7 @@ fb_target_sources(fbserver
 # gfix
 ################################################################################
 fb_add_executable(gfix MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(gfix)
 fb_target_compile_definitions(gfix
@@ -1388,7 +1462,7 @@ fb_target_sources(gfix
 # gsec
 ################################################################################
 fb_add_executable(gsec MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(gsec)
 fb_target_compile_definitions(gsec
@@ -1412,7 +1486,7 @@ fb_target_sources(gsec
 # gsplit
 ################################################################################
 fb_add_executable(gsplit MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(gsplit)
 fb_target_compile_definitions(gsplit
@@ -1436,7 +1510,7 @@ fb_target_sources(gsplit
 # gstat
 ################################################################################
 fb_add_executable(gstat MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(gstat)
 fb_target_compile_definitions(gstat
@@ -1483,29 +1557,31 @@ fb_target_sources(ib_util
 ################################################################################
 # instreg
 ################################################################################
-fb_add_executable(instreg MAIN
-    LAYOUT_DIR /
-)
-fb_target_resources(instreg)
-fb_target_compile_definitions(instreg
-    PRIVATE
-        DEV_BUILD
-)
-fb_target_include_directories(instreg
-    ROOT_PRIVATE
-        "src/include"
-)
-fb_target_sources(instreg
-    ROOT_PRIVATE
-        "src/utilities/install/install_reg.cpp"
-        "src/utilities/install/registry.cpp"
-)
+if(WIN32)
+    fb_add_executable(instreg MAIN
+        LAYOUT_DIR ${LODIR_BIN}
+    )
+    fb_target_resources(instreg)
+    fb_target_compile_definitions(instreg
+        PRIVATE
+            DEV_BUILD
+    )
+    fb_target_include_directories(instreg
+        ROOT_PRIVATE
+            "src/include"
+    )
+    fb_target_sources(instreg
+        ROOT_PRIVATE
+            "src/utilities/install/install_reg.cpp"
+            "src/utilities/install/registry.cpp"
+    )
+endif()
 
 ################################################################################
 # instsvc
 ################################################################################
 fb_add_executable(instsvc MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(instsvc)
 fb_target_compile_definitions(instsvc
@@ -1582,7 +1658,7 @@ fb_target_sources(intl
 # qli
 ################################################################################
 fb_add_executable(qli MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(qli)
 fb_target_compile_definitions(qli
@@ -1626,7 +1702,7 @@ fb_target_sources(qli
 # nbackup
 ################################################################################
 fb_add_executable(nbackup MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(nbackup)
 fb_target_compile_definitions(nbackup
@@ -1651,28 +1727,30 @@ fb_target_sources(nbackup
 ################################################################################
 # instclient
 ################################################################################
-fb_add_executable(instclient MAIN
-    LAYOUT_DIR /
-)
-fb_target_resources(instclient)
-fb_target_compile_definitions(instclient
-    PRIVATE
-        SUPERCLIENT
-        DEV_BUILD
-)
-fb_target_link_libraries(instclient
-    PRIVATE
-        version
-)
-fb_target_include_directories(instclient
-    ROOT_PRIVATE
-        "src/include"
-)
-fb_target_sources(instclient
-    ROOT_PRIVATE
-        "src/utilities/install/install.cpp"
-        "src/utilities/install/install_client.cpp"
-)
+if(WIN32)
+    fb_add_executable(instclient MAIN
+        LAYOUT_DIR ${LODIR_BIN}
+    )
+    fb_target_resources(instclient)
+    fb_target_compile_definitions(instclient
+        PRIVATE
+            SUPERCLIENT
+            DEV_BUILD
+    )
+    fb_target_link_libraries(instclient
+        PRIVATE
+            version
+    )
+    fb_target_include_directories(instclient
+        ROOT_PRIVATE
+            "src/include"
+    )
+    fb_target_sources(instclient
+        ROOT_PRIVATE
+            "src/utilities/install/install.cpp"
+            "src/utilities/install/install_client.cpp"
+    )
+endif()
 
 ################################################################################
 # fbrmclib
@@ -1703,7 +1781,7 @@ endif()
 # fbsvcmgr
 ################################################################################
 fb_add_executable(fbsvcmgr MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(fbsvcmgr)
 fb_target_compile_definitions(fbsvcmgr
@@ -1727,7 +1805,7 @@ fb_target_sources(fbsvcmgr
 # fbtrace
 ################################################################################
 fb_add_library(fbtrace SHARED MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
 )
 fb_target_resources(fbtrace)
 fb_target_compile_definitions(fbtrace
@@ -1762,7 +1840,7 @@ fb_target_sources(fbtrace
 # fbtracemgr
 ################################################################################
 fb_add_executable(fbtracemgr MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_BIN}
 )
 fb_target_resources(fbtracemgr)
 fb_target_compile_definitions(fbtracemgr
@@ -1791,7 +1869,7 @@ fb_target_sources(fbtracemgr
 # udr_engine
 ################################################################################
 fb_add_library(udr_engine SHARED MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
 )
 fb_target_resources(udr_engine)
 fb_target_compile_definitions(udr_engine
@@ -1817,7 +1895,7 @@ fb_target_sources(udr_engine
 # legacy_usermanager
 ################################################################################
 fb_add_library(legacy_usermanager SHARED MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
 )
 fb_target_resources(legacy_usermanager)
 fb_target_compile_definitions(legacy_usermanager
@@ -1842,7 +1920,7 @@ fb_target_sources(legacy_usermanager
 # srp
 ################################################################################
 fb_add_library(srp SHARED MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
 )
 fb_target_resources(srp)
 fb_target_compile_definitions(srp
@@ -1867,7 +1945,7 @@ fb_target_sources(srp
 # legacy_auth
 ################################################################################
 fb_add_library(legacy_auth SHARED MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
 )
 fb_target_resources(legacy_auth)
 fb_target_compile_definitions(legacy_auth
@@ -1916,7 +1994,7 @@ fb_target_sources(udf_compat
 # chacha
 ################################################################################
 fb_add_library(chacha SHARED MAIN
-    LAYOUT_DIR /plugins
+    LAYOUT_DIR ${LODIR_PLUGINS}
 )
 fb_target_resources(chacha)
 fb_target_compile_definitions(chacha

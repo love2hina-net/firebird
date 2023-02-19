@@ -14,8 +14,19 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${FIREBIRD_OUTPUT_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${FIREBIRD_OUTPUT_DIR})
 
 # 配置先
-set(FIREBIRD_GEN_DIR "${FIREBIRD_BINARY_DIR}/gen")
-set(FIREBIRD_EXEC_DIR "${FIREBIRD_BINARY_DIR}/exec")
+set(FIREBIRD_GEN_DIR    "${FIREBIRD_BINARY_DIR}/gen")
+set(FIREBIRD_EXEC_DIR   "${FIREBIRD_BINARY_DIR}/exec")
+
+# レイアウト定義
+if(WIN32)
+    set(LODIR_BIN       "/")
+    set(LODIR_LIB       "/")
+    set(LODIR_PLUGINS   "/plugins")
+else()
+    set(LODIR_BIN       "/bin")
+    set(LODIR_LIB       "/lib")
+    set(LODIR_PLUGINS   "/plugins")
+endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     # 64 bits
@@ -171,6 +182,7 @@ function(_fb_add_layout target dir file)
     set_target_properties("${target}"
         PROPERTIES
             FB_DEPLOY_PATH "${FIREBIRD_EXEC_DIR}/${dir}/${file}"
+            FB_DEPLOY_DIR  "${FIREBIRD_EXEC_DIR}/${dir}"
     )
     set_source_files_properties(
         "${FIREBIRD_EXEC_DIR}/${dir}/${file}"
@@ -237,9 +249,19 @@ function(fb_add_library target type)
         add_library("${target}_${BUILD}" ${type})
         set_target_properties("${target}_${BUILD}"
             PROPERTIES
+                CXX_STANDARD    11
                 FB_BUILD_TYPES  "${LIB_BUILD_TYPES}"
-                OUTPUT_NAME     "${BUILD}/${LIB_OUTPUT_NAME}"
+                ARCHIVE_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
+                LIBRARY_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
+                OUTPUT_NAME     "${LIB_OUTPUT_NAME}"
         )
+        if(APPLE)
+            set_target_properties("${target}_${BUILD}"
+                PROPERTIES
+                    MACOSX_RPATH true
+                    LINK_OPTIONS "LINKER:-seg1addr,0x30000000,-current_version,4.0.2,-compatibility_version,4.0.2"
+            )
+        endif()
 
         if(DEFINED LIB_LAYOUT_DIR)
             get_target_suffix(TGT_SUFFIX "${target}_${BUILD}")
@@ -247,7 +269,7 @@ function(fb_add_library target type)
 
             _fb_add_layout("${target}_${BUILD}"
                 "${BUILD}${LIB_LAYOUT_DIR}"
-                "${LIB_OUTPUT_NAME}${TGT_SUFFIX}"
+                "${CMAKE_SHARED_LIBRARY_PREFIX}${LIB_OUTPUT_NAME}${TGT_SUFFIX}"
                 DEPENDS ${LIB_DEPENDS}
                 GEN_DEPENDS ${SET_GEN_DEPENDS}
             )
@@ -299,9 +321,17 @@ function(fb_add_executable target)
         add_executable("${target}_${BUILD}" ${EXE_FLAGS})
         set_target_properties("${target}_${BUILD}"
             PROPERTIES
+                CXX_STANDARD    11
                 FB_BUILD_TYPES  "${EXE_BUILD_TYPES}"
-                OUTPUT_NAME     "${BUILD}/${EXE_OUTPUT_NAME}"
+                RUNTIME_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
+                OUTPUT_NAME     "${EXE_OUTPUT_NAME}"
         )
+        if(UNIX)
+            set_target_properties("${target}_${BUILD}"
+                PROPERTIES
+                    BUILD_RPATH "../lib;../plugins"
+            )
+        endif()
 
         if(DEFINED EXE_LAYOUT_DIR)
             _fb_resolve_target("${BUILD}" EXE_GEN_DEPENDS SET_GEN_DEPENDS)
@@ -475,7 +505,7 @@ function(fb_target_sources target)
 
     foreach(BUILD IN LISTS TGT_BUILDS)
         list(TRANSFORM SRC_GEN_INTERFACE PREPEND "${FIREBIRD_GEN_DIR}/${BUILD}/" OUTPUT_VARIABLE SET_GEN_INTERFACE)
-        list(TRANSFORM SRC_GEN_PUBLIC}   PREPEND "${FIREBIRD_GEN_DIR}/${BUILD}/" OUTPUT_VARIABLE SET_GEN_PUBLIC)
+        list(TRANSFORM SRC_GEN_PUBLIC    PREPEND "${FIREBIRD_GEN_DIR}/${BUILD}/" OUTPUT_VARIABLE SET_GEN_PUBLIC)
         list(TRANSFORM SRC_GEN_PRIVATE   PREPEND "${FIREBIRD_GEN_DIR}/${BUILD}/" OUTPUT_VARIABLE SET_GEN_PRIVATE)
 
         target_sources("${target}_${BUILD}"

@@ -347,6 +347,7 @@ endif(WIN32)
 
 if (APPLE)
     set(ENABLE_BINRELOC 0)
+    set(SUPPORT_RAW_DEVICES 0)
     set(CASE_SENSITIVITY "false")
 endif()
 

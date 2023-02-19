@@ -38,9 +38,10 @@
 #include <time.h>
 #include <ctype.h>
 #include <math.h>
-#include <crtdbg.h>
 
 #ifdef _MSC_VER
+#include <crtdbg.h>
+
 #include "autoconfig_msvc.h"
 #else
 #include "autoconfig.h"
