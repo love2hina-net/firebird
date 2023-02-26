@@ -1370,28 +1370,48 @@ fb_target_sources(fb_lock_print
 ################################################################################
 # fbguard
 ################################################################################
-fb_add_executable(fbguard WIN32 MAIN)
-fb_target_compile_definitions(fbguard
-    PRIVATE
-        SUPERCLIENT
-        DEV_BUILD
-)
-fb_target_link_libraries(fbguard
-    PRIVATE
-        version
-        comctl32
-        common
-    GEN_PRIVATE
-        yvalve
-)
-fb_target_sources(fbguard
-    ROOT_PRIVATE
-        "src/iscguard/cntl_guard.cpp"
-        "src/iscguard/iscguard.cpp"
-        "src/remote/server/os/win32/chop.cpp"
+if(WIN32)
+    fb_add_executable(fbguard WIN32 MAIN)
+    fb_target_compile_definitions(fbguard
+        PRIVATE
+            SUPERCLIENT
+            DEV_BUILD
+    )
+    fb_target_link_libraries(fbguard
+        PRIVATE
+            version
+            comctl32
+            common
+        GEN_PRIVATE
+            yvalve
+    )
+    fb_target_sources(fbguard
+        ROOT_PRIVATE
+            "src/iscguard/cntl_guard.cpp"
+            "src/iscguard/iscguard.cpp"
+            "src/remote/server/os/win32/chop.cpp"
 
-        "src/iscguard/iscguard.rc"
-)
+            "src/iscguard/iscguard.rc"
+    )
+else()
+    fb_add_executable(fbguard MAIN)
+    fb_target_compile_definitions(fbguard
+        PRIVATE
+            SUPERCLIENT
+            DEV_BUILD
+    )
+    fb_target_link_libraries(fbguard
+        PRIVATE
+            common
+        GEN_PRIVATE
+            yvalve
+    )
+    fb_target_sources(fbguard
+        ROOT_PRIVATE
+            "src/utilities/guard/guard.cpp"
+            "src/utilities/guard/util.cpp"
+    )
+endif()
 
 ################################################################################
 # fbserver
@@ -1407,7 +1427,6 @@ fb_target_compile_definitions(fbserver
 )
 fb_target_link_libraries(fbserver
     PRIVATE
-        comctl32
         common
         remote
     GEN_PRIVATE
@@ -1421,18 +1440,32 @@ fb_target_sources(fbserver
     ROOT_PRIVATE
         "src/auth/SecDbCache.cpp"
         "src/auth/SecureRemotePassword/server/SrpServer.cpp"
-        "src/remote/server/os/win32/chop.cpp"
-        "src/remote/server/os/win32/cntl.cpp"
-        "src/remote/server/os/win32/property.cpp"
-        "src/remote/server/os/win32/srvr_w32.cpp"
-        "src/remote/server/os/win32/window.cpp"
         "src/remote/server/server.cpp"
         "src/remote/server/ReplServer.cpp"
         "src/jrd/replication/Config.cpp"
         "src/jrd/replication/Utils.cpp"
-
-        "src/remote/server/os/win32/window.rc"
 )
+if(WIN32)
+    fb_target_link_libraries(fbserver
+        PRIVATE
+            comctl32
+    )
+    fb_target_sources(fbserver
+        ROOT_PRIVATE
+            "src/remote/server/os/win32/chop.cpp"
+            "src/remote/server/os/win32/cntl.cpp"
+            "src/remote/server/os/win32/property.cpp"
+            "src/remote/server/os/win32/srvr_w32.cpp"
+            "src/remote/server/os/win32/window.cpp"
+
+            "src/remote/server/os/win32/window.rc"
+    )
+else()
+    fb_target_sources(fbserver
+        ROOT_PRIVATE
+            "src/remote/server/os/posix/inet_server.cpp"
+    )
+endif()
 
 ################################################################################
 # gfix
@@ -1580,26 +1613,28 @@ endif()
 ################################################################################
 # instsvc
 ################################################################################
-fb_add_executable(instsvc MAIN
-    LAYOUT_DIR ${LODIR_BIN}
-)
-fb_target_resources(instsvc)
-fb_target_compile_definitions(instsvc
-    PRIVATE
-        SUPERCLIENT
-        DEV_BUILD
-)
-fb_target_link_libraries(instsvc
-    PRIVATE
-        common
-    GEN_PRIVATE
-        yvalve
-)
-fb_target_sources(instsvc
-    ROOT_PRIVATE
-        "src/utilities/install/install_svc.cpp"
-        "src/utilities/install/services.cpp"
-)
+if(WIN32)
+    fb_add_executable(instsvc MAIN
+        LAYOUT_DIR ${LODIR_BIN}
+    )
+    fb_target_resources(instsvc)
+    fb_target_compile_definitions(instsvc
+        PRIVATE
+            SUPERCLIENT
+            DEV_BUILD
+    )
+    fb_target_link_libraries(instsvc
+        PRIVATE
+            common
+        GEN_PRIVATE
+            yvalve
+    )
+    fb_target_sources(instsvc
+        ROOT_PRIVATE
+            "src/utilities/install/install_svc.cpp"
+            "src/utilities/install/services.cpp"
+    )
+endif()
 
 ################################################################################
 # intl
@@ -1827,7 +1862,6 @@ fb_target_include_directories(fbtrace
 )
 fb_target_sources(fbtrace
     ROOT_PRIVATE
-        "src/utilities/ntrace/os/win32/platform.cpp"
         "src/utilities/ntrace/PluginLogWriter.cpp"
         "src/utilities/ntrace/TraceConfiguration.cpp"
         "src/utilities/ntrace/traceplugin.cpp"
@@ -1835,6 +1869,17 @@ fb_target_sources(fbtrace
 
         "builds/win32/defs/plugin.def"
 )
+if(WIN32)
+    fb_target_sources(fbtrace
+        ROOT_PRIVATE
+            "src/utilities/ntrace/os/win32/platform.cpp"
+    )
+else()
+    fb_target_sources(fbtrace
+        ROOT_PRIVATE
+            "src/utilities/ntrace/os/posix/platform.cpp"
+    )
+endif()
 
 ################################################################################
 # fbtracemgr
