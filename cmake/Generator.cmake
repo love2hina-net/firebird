@@ -5,7 +5,155 @@
 ################################################################################
 
 ################################################################################
-# definitions(interface)
+# functions
+################################################################################
+# fb_add_custom_command
+#   OUTPUT  <files>
+#   DEPENDS <files>
+#   WORKING_DIRECTORY   <directory>
+#   SHELL   <commands>
+#   COMMAND <commands>
+#   COMMENT <message>
+#   VERBATIM
+function(fb_add_custom_command)
+    fb_parse_arguments(CMD
+        "VERBATIM"
+        "WORKING_DIRECTORY;COMMENT"
+        "OUTPUT;DEPENDS"
+        "SHELL;COMMAND"
+        ${ARGN}
+    )
+
+    # チェック
+    if(NOT CMD_SHELL)
+        message(FATAL_ERROR "NOT SPECIFIED SHELL")
+    elseif(NOT CMD_COMMAND)
+        message(FATAL_ERROR "NOT SPECIFIED COMMANDS")
+    endif()
+
+    # コマンドの組み立て
+    list(JOIN CMD_SHELL   " "    ARG_SHELL)
+    list(JOIN CMD_COMMAND " && " ARG_COMMAND)
+    list(JOIN ARG_COMMAND " "    ARG_COMMAND)
+    if(CMD_VERBATIM)
+        set(ARG_VERBATIM "VERBATIM")
+    endif()
+
+    add_custom_command(
+        OUTPUT
+            ${CMD_OUTPUT}
+        DEPENDS
+            ${CMD_DEPENDS}
+        WORKING_DIRECTORY
+            ${CMD_WORKING_DIRECTORY}
+        COMMAND
+            ${ARG_SHELL} "${ARG_COMMAND}"
+        COMMENT
+            ${CMD_COMMENT}
+        ${ARG_VERBATIM}
+    )
+endfunction()
+
+# fb_preprocess
+function(fb_preprocess build dir file gpre_opt)
+    if(${build} STRLESS_EQUAL "boot")
+        set(GPRE_EXE "${FIREBIRD_EXEC_DIR}/boot/bin/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}")
+        set(GPRE_DIR "${FIREBIRD_EXEC_DIR}/boot/bin")
+        set(GPRE_DEPS 
+            ${BOOT_EXECUTION_DEPS}
+        )
+    else()
+        set(GPRE_EXE "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}")
+        set(GPRE_DIR "${FIREBIRD_EXEC_DIR}/boot/bin")
+        set(GPRE_DEPS
+            ${BOOT_EXECUTION_DEPS}
+            "$<TARGET_PROPERTY:yvalve_boot,FB_DEPLOY_PATH>"
+            "$<TARGET_PROPERTY:engine_boot,FB_DEPLOY_PATH>"
+            "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk"
+            "${FIREBIRD_GEN_DIR}/dbs/SECURITY.FDB"
+            "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
+            "${FIREBIRD_GEN_DIR}/dbs/HELP.FDB"
+        )
+    endif()
+
+    fb_add_custom_command(
+        OUTPUT
+            "${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp"
+        DEPENDS
+            "${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp"
+            "${FIREBIRD_GEN_DIR}/${build}/${dir}"
+            "${FIREBIRD_GEN_DIR}/dbs"
+            "${GPRE_EXE}"
+            ${GPRE_DEPS}
+        WORKING_DIRECTORY "${GPRE_DIR}"
+        SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
+        SHELL UNIX bash -c
+        COMMAND WIN32
+            "$mutex = New-Object -TypeName 'System.Threading.Mutex' -ArgumentList @($false, 'Global\\firebird_gpre')$<SEMICOLON>"
+            "[void] $mutex.WaitOne()$<SEMICOLON>"
+            "try {"
+                "& '${GPRE_EXE}' $<JOIN:${gpre_opt}, > '${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' -b '${FIREBIRD_GEN_DIR}/dbs/'"
+            "} finally {"
+                "[void] $mutex.ReleaseMutex()"
+            "}"
+        COMMAND WIN32
+            "if (-not (Test-Path -Path '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp') -or"
+            "(Compare-Object -ReferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen') -DifferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'))) {"
+                "Move-Item -Force -Path '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' -Destination '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'"
+            "} else {"
+                "Remove-Item -Path '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen'"
+            "}"
+        COMMAND UNIX
+            "{ flock '${FIREBIRD_GEN_DIR}/gpre.lock' '${GPRE_EXE}' $<JOIN:${gpre_opt}, > '${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' -b '${FIREBIRD_GEN_DIR}/dbs/'$<SEMICOLON> }"
+        COMMAND UNIX
+            "if !(test -f '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp') ||"
+            "!($(${CMAKE_COMMAND} -E compare_files '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'))$<SEMICOLON> then"
+                "mv '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'$<SEMICOLON>"
+            "else"
+                "rm '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen'$<SEMICOLON>"
+            "fi"
+        COMMENT "Processing ${build}: ${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp"
+        VERBATIM
+    )
+    set_source_files_properties(
+        "${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp"
+        PROPERTIES GENERATED TRUE
+    )
+endfunction()
+
+################################################################################
+# export symbols
+################################################################################
+foreach(VER_FILE IN ITEMS
+    "empty.vers"
+    "fbintl.vers"
+    "fbplugin.vers"
+    "firebird.vers"
+    "ib_util.vers"
+    "udr_plugin.vers")
+    
+    fb_add_custom_command(
+        OUTPUT "${FIREBIRD_GEN_DIR}/common/${VER_FILE}"
+        DEPENDS "${FIREBIRD_SOURCE_DIR}/builds/posix/${VER_FILE}"
+        SHELL UNIX bash -c
+        COMMAND UNIX
+            ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/common/${VER_FILE}"
+        COMMAND APPLE
+            "for i in `grep -v '#' ${FIREBIRD_SOURCE_DIR}/builds/posix/${VER_FILE}`$<SEMICOLON>"
+            "do"
+                "echo \"\t_$i\" >> ${FIREBIRD_GEN_DIR}/common/${VER_FILE}$<SEMICOLON>"
+            "done"
+        COMMENT "Processing: ${FIREBIRD_SOURCE_DIR}/builds/posix/${VER_FILE}"
+        VERBATIM
+    )
+    set_source_files_properties(
+        "${FIREBIRD_GEN_DIR}/common/${VER_FILE}"
+        PROPERTIES GENERATED TRUE
+    )
+endforeach()
+
+################################################################################
+# interface
 ################################################################################
 add_custom_command(
     OUTPUT "${FIREBIRD_SOURCE_DIR}/src/include/firebird/IdlFbInterfaces.h"
@@ -170,180 +318,6 @@ add_custom_command(
     OUTPUT "${FIREBIRD_GEN_DIR}/include"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${FIREBIRD_GEN_DIR}/include"
     COMMENT "Creating directory: ${FIREBIRD_GEN_DIR}/include"
-    VERBATIM
-)
-
-################################################################################
-# functions
-################################################################################
-macro(_fetch)
-    if("${ARG_FLG}" STREQUAL "OUTPUT")
-        set(ARG_OUTPUT "${ARG_BUF}")
-    elseif("${ARG_FLG}" STREQUAL "DEPENDS")
-        set(ARG_DEPENDS "${ARG_BUF}")
-    elseif("${ARG_FLG}" STREQUAL "WORKING_DIRECTORY")
-        set(ARG_WORKING_DIRECTORY "${ARG_BUF}")
-    elseif("${ARG_FLG}" STREQUAL "SHELL")
-        list(POP_FRONT ARG_BUF ARG_COND)
-        if(DEFINED "${ARG_COND}")
-            set(ARG_SHELL "${ARG_BUF}")
-        endif()
-    elseif("${ARG_FLG}" STREQUAL "COMMAND")
-        list(POP_FRONT ARG_BUF ARG_COND)
-        if(DEFINED "${ARG_COND}")
-            list(JOIN ARG_BUF " " ARG_BUF)
-            list(APPEND ARG_COMMAND "${ARG_BUF}")
-        endif()  
-    elseif("${ARG_FLG}" STREQUAL "COMMENT")
-        set(ARG_COMMENT "${ARG_BUF}")
-    endif()
-
-    set(ARG_BUF "")
-endmacro()
-
-# fb_add_custom_command
-#   OUTPUT  <files>
-#   DEPENDS <files>
-#   WORKING_DIRECTORY   <directory>
-#   SHELL   <commands>
-#   COMMAND <commands>
-#   COMMENT <message>
-#   VERBATIM
-function(fb_add_custom_command)
-    # 引数のパース
-    set(ARG_FLG "")
-    math(EXPR ARG_COUNT "${ARGC} - 1")
-    foreach(ARGI RANGE 0 ${ARG_COUNT})
-        if("${ARGV${ARGI}}" STREQUAL "OUTPUT")
-            _fetch()
-            set(ARG_FLG "OUTPUT")
-        elseif("${ARGV${ARGI}}" STREQUAL "DEPENDS")
-            _fetch()
-            set(ARG_FLG "DEPENDS")
-        elseif("${ARGV${ARGI}}" STREQUAL "WORKING_DIRECTORY")
-            _fetch()
-            set(ARG_FLG "WORKING_DIRECTORY")
-        elseif("${ARGV${ARGI}}" STREQUAL "SHELL")
-            _fetch()
-            set(ARG_FLG "SHELL")
-        elseif("${ARGV${ARGI}}" STREQUAL "COMMAND")
-            _fetch()
-            set(ARG_FLG "COMMAND")
-        elseif("${ARGV${ARGI}}" STREQUAL "COMMENT")
-            _fetch()
-            set(ARG_FLG "COMMENT")
-        elseif("${ARGV${ARGI}}" STREQUAL "VERBATIM")
-            _fetch()
-            set(ARG_FLG "VERBATIM")
-            set(ARG_VERBATIM "VERBATIM")
-        elseif(ARG_FLG STREQUAL "")
-            message(FATAL_ERROR)
-        else()
-            list(APPEND "ARG_BUF" "${ARGV${ARGI}}")
-        endif()
-    endforeach()
-    _fetch()
-
-    # チェック
-    if(NOT ARG_SHELL)
-        message(FATAL_ERROR "NOT SPECIFIED SHELL")
-    elseif(NOT ARG_COMMAND)
-        message(FATAL_ERROR "NOT SPECIFIED COMMANDS")
-    endif()
-
-    # コマンドの組み立て
-    list(JOIN ARG_COMMAND " && " ALL_COMMAND)
-
-    add_custom_command(
-        OUTPUT
-            ${ARG_OUTPUT}
-        DEPENDS
-            ${ARG_DEPENDS}
-        WORKING_DIRECTORY
-            ${ARG_WORKING_DIRECTORY}
-        COMMAND
-            ${ARG_SHELL} "${ALL_COMMAND}"
-        COMMENT
-            ${ARG_COMMENT}
-        ${ARG_VERBATIM}
-    )
-endfunction()
-# for fb_add_custom_command
-set(COMMON true)
-
-# fb_preprocess
-function(fb_preprocess build dir file gpre_opt)
-    if(${build} STRLESS_EQUAL "boot")
-        set(GPRE_EXE "$<TARGET_FILE:gpre_boot>")
-        set(GPRE_DIR "$<TARGET_FILE_DIR:gpre_boot>")
-        set(GPRE_DEPS "")
-    else()
-        set(GPRE_EXE "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}")
-        set(GPRE_DIR "${FIREBIRD_EXEC_DIR}/boot/bin")
-        set(GPRE_DEPS
-            ${BOOT_EXECUTION_DEPS}
-            "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk"
-            "${FIREBIRD_GEN_DIR}/dbs/SECURITY.FDB"
-            "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
-            "${FIREBIRD_GEN_DIR}/dbs/HELP.FDB"
-        )
-    endif()
-
-    fb_add_custom_command(
-        OUTPUT
-            "${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp"
-        DEPENDS
-            "${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp"
-            "${FIREBIRD_GEN_DIR}/${build}/${dir}"
-            "${FIREBIRD_GEN_DIR}/dbs"
-            "${GPRE_EXE}"
-            ${GPRE_DEPS}
-        WORKING_DIRECTORY "${GPRE_DIR}"
-        SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
-        SHELL UNIX bash -c
-        COMMAND APPLE
-            "export DYLD_FALLBACK_LIBRARY_PATH='${ICU_LIB_PATH}'"
-        COMMAND WIN32
-            "$mutex = New-Object -TypeName 'System.Threading.Mutex' -ArgumentList @($false, 'Global\\firebird_gpre')$<SEMICOLON>"
-            "[void] $mutex.WaitOne()$<SEMICOLON>"
-            "try {"
-                "& '${GPRE_EXE}' $<JOIN:${gpre_opt}, > '${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' -b '${FIREBIRD_GEN_DIR}/dbs/'"
-            "} finally {"
-                "[void] $mutex.ReleaseMutex()"
-            "}"
-        COMMAND WIN32
-            "if (-not (Test-Path -Path '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp') -or"
-            "(Compare-Object -ReferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen') -DifferenceObject $(Get-Content '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'))) {"
-                "Move-Item -Force -Path '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' -Destination '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'"
-            "} else {"
-                "Remove-Item -Path '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen'"
-            "}"
-        COMMAND UNIX
-            "{ flock '${FIREBIRD_GEN_DIR}/gpre.lock' '${GPRE_EXE}' $<JOIN:${gpre_opt}, > '${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' -b '${FIREBIRD_GEN_DIR}/dbs/'$<SEMICOLON> }"
-        COMMAND UNIX
-            "if !(test -f '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp') ||"
-            "!($(${CMAKE_COMMAND} -E compare_files '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'))$<SEMICOLON> then"
-                "mv '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen' '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp'$<SEMICOLON>"
-            "else"
-                "rm '${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.gen'$<SEMICOLON>"
-            "fi"
-        COMMENT "Processing ${build}: ${FIREBIRD_SOURCE_DIR}/src/${dir}/${file}.epp"
-        VERBATIM
-    )
-    set_source_files_properties(
-        "${FIREBIRD_GEN_DIR}/${build}/${dir}/${file}.cpp"
-        PROPERTIES GENERATED TRUE
-    )
-endfunction()
-
-# gpre
-add_custom_command(
-    OUTPUT "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}"
-    DEPENDS
-        gpre_main
-        "$<TARGET_PROPERTY:yvalve_boot,FB_DEPLOY_PATH>"
-        "$<TARGET_PROPERTY:engine_boot,FB_DEPLOY_PATH>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_main>" "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}"
     VERBATIM
 )
 
@@ -533,8 +507,6 @@ fb_add_custom_command(
     WORKING_DIRECTORY "$<TARGET_PROPERTY:isql_boot,FB_DEPLOY_DIR>"
     SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
     SHELL UNIX bash -c
-    COMMAND APPLE
-        "export DYLD_FALLBACK_LIBRARY_PATH='${ICU_LIB_PATH}'"
     COMMAND COMMON
         ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/SECURITY4.FDB" "${FIREBIRD_GEN_DIR}/dbs/SECURITY.FDB"
     COMMAND WIN32 
@@ -563,8 +535,6 @@ fb_add_custom_command(
     WORKING_DIRECTORY "$<TARGET_PROPERTY:gbak_boot,FB_DEPLOY_DIR>"
     SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
     SHELL UNIX bash -c
-    COMMAND APPLE
-        "export DYLD_FALLBACK_LIBRARY_PATH='${ICU_LIB_PATH}'"
     COMMAND COMMON
         ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/METADATA.FDB" "${FIREBIRD_GEN_DIR}/dbs/yachts.lnk"
     COMMAND COMMON
@@ -595,8 +565,6 @@ fb_add_custom_command(
     WORKING_DIRECTORY "$<TARGET_PROPERTY:isql_boot,FB_DEPLOY_DIR>"
     SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
     SHELL UNIX bash -c
-    COMMAND APPLE
-        "export DYLD_FALLBACK_LIBRARY_PATH='${ICU_LIB_PATH}'"
     COMMAND COMMON
         ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
     COMMAND WIN32
@@ -638,8 +606,6 @@ fb_add_custom_command(
     WORKING_DIRECTORY "$<TARGET_PROPERTY:gbak_boot,FB_DEPLOY_DIR>"
     SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
     SHELL UNIX bash -c
-    COMMAND APPLE
-        "export DYLD_FALLBACK_LIBRARY_PATH='${ICU_LIB_PATH}'"
     COMMAND COMMON
         ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/dbs/HELP.FDB"
     COMMAND COMMON
@@ -651,14 +617,17 @@ fb_add_custom_command(
 ################################################################################
 # messages/codes
 ################################################################################
-add_custom_command(
+fb_add_custom_command(
     OUTPUT "${FIREBIRD_GEN_DIR}/main/firebird.msg"
     DEPENDS
         "$<TARGET_PROPERTY:build_msg_main,FB_DEPLOY_PATH>"
         ${MAIN_EXECUTION_DEPS}
         "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB"
     WORKING_DIRECTORY "$<TARGET_PROPERTY:build_msg_main,FB_DEPLOY_DIR>"
-    COMMAND "$<TARGET_PROPERTY:build_msg_main,FB_DEPLOY_PATH>" -D "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB" -p "${FIREBIRD_GEN_DIR}/main/" -f firebird.msg
+    SHELL WIN32 pwsh.exe -ExecutionPolicy Bypass -Command
+    SHELL UNIX bash -c
+    COMMAND COMMON
+        "$<TARGET_PROPERTY:build_msg_main,FB_DEPLOY_PATH>" -D "${FIREBIRD_GEN_DIR}/dbs/MSG.FDB" -p "${FIREBIRD_GEN_DIR}/main/" -f firebird.msg
     COMMENT "Building message file..."
     VERBATIM
 )

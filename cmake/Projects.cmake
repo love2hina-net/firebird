@@ -640,6 +640,10 @@ fb_target_sources(decNumber
 # common
 ################################################################################
 fb_add_library(common STATIC COMMON)
+target_sources(common_common
+    PRIVATE
+        ${COMMON_ICU_DEPS}
+)
 fb_target_compile_definitions(common
     PRIVATE
         DEV_BUILD
@@ -665,6 +669,8 @@ elseif(APPLE)
             "-framework Foundation"
             "-framework Security"
             iconv
+            "-L ${FIREBIRD_OUTPUT_DIR}/common"
+            ${COMMON_ICU_DEPS}
     )
 endif()
 fb_target_include_directories(common
@@ -850,15 +856,24 @@ fb_target_link_libraries(gpre
 fb_target_include_directories(gpre
     ROOT_PRIVATE
         "src/include"
-    PRIVATE
-        "${ICU_INC_PATH}"
+#    PRIVATE
+#        "${ICU_INC_PATH}"
 )
 # gpreはbootとmainで内容が異なる
+# boot
 target_sources(gpre_boot
     PRIVATE
         "${FIREBIRD_SOURCE_DIR}/src/gpre/boot/gpre_meta_boot.cpp"
         "${FIREBIRD_SOURCE_DIR}/src/yvalve/gds.cpp"
 )
+add_custom_command(
+    OUTPUT  "${FIREBIRD_EXEC_DIR}/boot/bin/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}"
+    DEPENDS gpre_boot
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_boot>" "${FIREBIRD_EXEC_DIR}/boot/bin/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}"
+    VERBATIM
+)
+
+# main
 target_compile_definitions(gpre_main
     PRIVATE
         GPRE_FORTRAN
@@ -873,6 +888,12 @@ target_link_libraries(gpre_main
 target_sources(gpre_main
     PRIVATE
         "${FIREBIRD_GEN_DIR}/boot/gpre/std/gpre_meta.cpp"
+)
+add_custom_command(
+    OUTPUT  "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}"
+    DEPENDS gpre_main
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_main>" "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}"
+    VERBATIM
 )
 
 ################################################################################
@@ -971,6 +992,10 @@ fb_add_library(yvalve SHARED BOOT MAIN
     LAYOUT_DIR ${LODIR_LIB}
     OUTPUT_NAME fbclient
 )
+fb_target_symbols(yvalve
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/firebird.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/firebird.vers"
+)
 fb_target_resources(yvalve)
 fb_target_compile_definitions(yvalve
     PRIVATE
@@ -1018,18 +1043,12 @@ if(WIN32)
         ROOT_PRIVATE
             "src/jrd/os/win32/ibinitdll.cpp"
             "src/yvalve/config/os/win32/config_root.cpp"
-
-            "builds/win32/defs/firebird.def"
     )
 elseif(APPLE)
     fb_target_sources(yvalve
         ROOT_PRIVATE
             "src/yvalve/config/os/posix/binreloc.c"
             "src/yvalve/config/os/darwin/config_root.cpp"
-    )
-    set_target_properties(yvalve_boot
-        PROPERTIES
-            LINK_OPTIONS "LINKER:-exported_symbols_list,${FIREBIRD_SOURCE_DIR}/gen/firebird.vers"
     )
 endif()
 
@@ -1039,6 +1058,10 @@ endif()
 fb_add_library(engine SHARED BOOT MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
     OUTPUT_NAME engine13
+)
+fb_target_symbols(engine
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
 )
 fb_target_resources(engine)
 fb_target_compile_definitions(engine
@@ -1220,8 +1243,6 @@ if(WIN32)
     fb_target_sources(engine
         ROOT_PRIVATE
             "src/jrd/os/win32/winnt.cpp"
-
-            "builds/win32/defs/plugin.def"
     )
 elseif(APPLE)
     fb_target_sources(engine
@@ -1266,6 +1287,9 @@ fb_add_executable(isql BOOT MAIN
         yvalve
         engine
 )
+fb_target_symbols(isql
+    SYMBOL UNIX "${FIREBIRD_GEN_DIR}/common/empty.vers"
+)
 fb_target_resources(isql)
 fb_target_compile_definitions(isql
     PRIVATE
@@ -1291,10 +1315,6 @@ fb_target_sources(isql
         "src/isql/InputDevices.cpp"
         "src/isql/iutils.cpp"
         "src/isql/OptionsBase.cpp"
-)
-set_target_properties(isql_boot
-    PROPERTIES
-        LINK_OPTIONS "LINKER:-exported_symbols_list,${FIREBIRD_SOURCE_DIR}/gen/empty.vers"
 )
 
 ################################################################################
@@ -1573,7 +1593,11 @@ fb_target_sources(gstat
 # ib_util
 ################################################################################
 fb_add_library(ib_util SHARED MAIN
-    LAYOUT_DIR /
+    LAYOUT_DIR ${LODIR_LIB}
+)
+fb_target_symbols(ib_util
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/ib_util.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/ib_util.vers"
 )
 fb_target_resources(ib_util)
 fb_target_include_directories(ib_util
@@ -1583,8 +1607,6 @@ fb_target_include_directories(ib_util
 fb_target_sources(ib_util
     ROOT_PRIVATE
         "src/extlib/ib_util.cpp"
-
-        "builds/win32/defs/ib_util.def"
 )
 
 ################################################################################
@@ -1642,6 +1664,9 @@ endif()
 fb_add_library(intl SHARED MAIN
     LAYOUT_DIR /intl
     OUTPUT_NAME fbintl
+)
+fb_target_symbols(intl
+    SYMBOL UNIX "${FIREBIRD_GEN_DIR}/common/fbintl.vers"
 )
 fb_target_resources(intl)
 fb_target_compile_definitions(intl
@@ -1842,6 +1867,10 @@ fb_target_sources(fbsvcmgr
 fb_add_library(fbtrace SHARED MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
 )
+fb_target_symbols(fbtrace
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
+)
 fb_target_resources(fbtrace)
 fb_target_compile_definitions(fbtrace
     PRIVATE
@@ -1866,8 +1895,6 @@ fb_target_sources(fbtrace
         "src/utilities/ntrace/TraceConfiguration.cpp"
         "src/utilities/ntrace/traceplugin.cpp"
         "src/utilities/ntrace/TracePluginImpl.cpp"
-
-        "builds/win32/defs/plugin.def"
 )
 if(WIN32)
     fb_target_sources(fbtrace
@@ -1916,6 +1943,10 @@ fb_target_sources(fbtracemgr
 fb_add_library(udr_engine SHARED MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
 )
+fb_target_symbols(udr_engine
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
+)
 fb_target_resources(udr_engine)
 fb_target_compile_definitions(udr_engine
     PRIVATE
@@ -1932,8 +1963,6 @@ fb_target_link_libraries(udr_engine
 fb_target_sources(udr_engine
     ROOT_PRIVATE
         "src/plugins/udr_engine/UdrEngine.cpp"
-
-        "builds/win32/defs/plugin.def"
 )
 
 ################################################################################
@@ -1941,6 +1970,10 @@ fb_target_sources(udr_engine
 ################################################################################
 fb_add_library(legacy_usermanager SHARED MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
+)
+fb_target_symbols(legacy_usermanager
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
 )
 fb_target_resources(legacy_usermanager)
 fb_target_compile_definitions(legacy_usermanager
@@ -1956,9 +1989,6 @@ fb_target_link_libraries(legacy_usermanager
 fb_target_sources(legacy_usermanager
     GEN_PRIVATE
         "auth/SecurityDatabase/LegacyManagement.cpp"
-
-    ROOT_PRIVATE
-        "builds/win32/defs/plugin.def"
 )
 
 ################################################################################
@@ -1966,6 +1996,10 @@ fb_target_sources(legacy_usermanager
 ################################################################################
 fb_add_library(srp SHARED MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
+)
+fb_target_symbols(srp
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
 )
 fb_target_resources(srp)
 fb_target_compile_definitions(srp
@@ -1982,8 +2016,6 @@ fb_target_link_libraries(srp
 fb_target_sources(srp
     ROOT_PRIVATE
         "src/auth/SecureRemotePassword/manage/SrpManagement.cpp"
-
-        "builds/win32/defs/plugin.def"
 )
 
 ################################################################################
@@ -1991,6 +2023,10 @@ fb_target_sources(srp
 ################################################################################
 fb_add_library(legacy_auth SHARED MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
+)
+fb_target_symbols(legacy_auth
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
 )
 fb_target_resources(legacy_auth)
 fb_target_compile_definitions(legacy_auth
@@ -2007,8 +2043,6 @@ fb_target_sources(legacy_auth
     ROOT_PRIVATE
         "src/auth/SecDbCache.cpp"
         "src/auth/SecurityDatabase/LegacyServer.cpp"
-
-        "builds/win32/defs/plugin.def"
 )
 
 ################################################################################
@@ -2041,6 +2075,10 @@ fb_target_sources(udf_compat
 fb_add_library(chacha SHARED MAIN
     LAYOUT_DIR ${LODIR_PLUGINS}
 )
+fb_target_symbols(chacha
+    SYMBOL WIN32 "${FIREBIRD_SOURCE_DIR}/builds/win32/defs/plugin.def"
+    SYMBOL UNIX  "${FIREBIRD_GEN_DIR}/common/fbplugin.vers"
+)
 fb_target_resources(chacha)
 fb_target_compile_definitions(chacha
     PRIVATE
@@ -2055,6 +2093,4 @@ fb_target_link_libraries(chacha
 fb_target_sources(chacha
     ROOT_PRIVATE
         "src/plugins/crypt/chacha/ChaCha.cpp"
-
-        "builds/win32/defs/plugin.def"
 )

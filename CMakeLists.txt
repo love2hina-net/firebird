@@ -52,13 +52,72 @@ if(APPLE)
     )
 endif()
 
+include(Layout)
+
+################################################################################
+# dependencies
+################################################################################
 # icu
 if(WIN32)
     set(ICU_INC_PATH "${FIREBIRD_SOURCE_DIR}/extern/icu/include")
-elseif(APPLE)
-    # TODO: 決め打ちの改善
-    set(ICU_INC_PATH "/usr/local/Cellar/icu4c/72.1/include")
-    set(ICU_LIB_PATH "/usr/local/Cellar/icu4c/72.1/lib")
+else()
+    function(fb_find_icu_library variable libname)
+        cmake_parse_arguments(ICU "" "" "PATHS" ${ARGN})
+
+        find_library(LIB_ICU
+            NAMES "${libname}"
+            PATHS ${ICU_PATHS}
+            NO_CACHE
+            REQUIRED
+        )
+        cmake_path(SET LIB_DIR NORMALIZE "${LIB_ICU}/..")
+        file(READ_SYMLINK "${LIB_ICU}" LIB_ICU)
+        if(NOT IS_ABSOLUTE "${LIB_ICU}")
+            cmake_path(SET LIB_ICU NORMALIZE "${LIB_DIR}/${LIB_ICU}")
+        endif()
+
+        # 出力先
+        cmake_path(GET LIB_ICU  FILENAME    LIB_FILENAME)
+        cmake_path(SET LIB_COPY NORMALIZE   "${FIREBIRD_OUTPUT_DIR}/common/${LIB_FILENAME}")
+
+        add_custom_command(
+            OUTPUT  "${LIB_COPY}"
+            DEPENDS "${LIB_ICU}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${LIB_ICU}" "${LIB_COPY}"
+            COMMAND chmod a+rw "${LIB_COPY}"
+            COMMAND install_name_tool
+                -id "@rpath/${LIB_FILENAME}"
+                -change "@loader_path/libicudata.72.dylib" "@loader_path/libicudata.72.1.dylib"
+                -change "@loader_path/libicuuc.72.dylib" "@loader_path/libicuuc.72.1.dylib"
+                "${LIB_COPY}"
+            VERBATIM
+        )
+
+        # 設定
+        set("${variable}" "${LIB_COPY}" PARENT_SCOPE)
+    endfunction()
+
+    fb_find_icu_library(LIB_ICUDATA icudata
+        PATHS
+            /usr/lib
+            /usr/local/lib
+            /usr/local/opt/icu4c/lib
+    )
+    fb_find_icu_library(LIB_ICUI18N icui18n
+        PATHS
+            /usr/lib
+            /usr/local/lib
+            /usr/local/opt/icu4c/lib
+    )
+    fb_find_icu_library(LIB_ICUUC icuuc
+        PATHS
+            /usr/lib
+            /usr/local/lib
+            /usr/local/opt/icu4c/lib
+    )
+
+    # TODO: 決め打ち
+    set(ICU_INC_PATH "/usr/local/opt/icu4c/include")
 endif()
 
 # zlib
@@ -74,6 +133,7 @@ else()
 endif()
 
 # icu/zlib
+set(COMMON_ICU_DEPS     "")
 set(BOOT_EXECUTION_DEPS "")
 set(MAIN_EXECUTION_DEPS
     "$<TARGET_PROPERTY:yvalve_main,FB_DEPLOY_PATH>"
@@ -94,12 +154,27 @@ if(WIN32)
         "${FIREBIRD_EXEC_DIR}/main/icudt63l.dat"
         "${FIREBIRD_EXEC_DIR}/main/zlib1.dll"
     )
+else()
+    list(APPEND COMMON_ICU_DEPS
+        "${LIB_ICUDATA}"
+        "${LIB_ICUI18N}"
+        "${LIB_ICUUC}"
+    )
+    list(APPEND BOOT_EXECUTION_DEPS
+        "${FIREBIRD_EXEC_DIR}/boot/lib/$<PATH:GET_FILENAME,${LIB_ICUDATA}>"
+        "${FIREBIRD_EXEC_DIR}/boot/lib/$<PATH:GET_FILENAME,${LIB_ICUI18N}>"
+        "${FIREBIRD_EXEC_DIR}/boot/lib/$<PATH:GET_FILENAME,${LIB_ICUUC}>"
+    )
+    list(APPEND MAIN_EXECUTION_DEPS
+        "${FIREBIRD_EXEC_DIR}/main/lib/$<PATH:GET_FILENAME,${LIB_ICUDATA}>"
+        "${FIREBIRD_EXEC_DIR}/main/lib/$<PATH:GET_FILENAME,${LIB_ICUI18N}>"
+        "${FIREBIRD_EXEC_DIR}/main/lib/$<PATH:GET_FILENAME,${LIB_ICUUC}>"
+    )
 endif()
 
 ################################################################################
 # 
 ################################################################################
-include(Layout)
 include(Generator)
 
 ################################################################################
@@ -137,30 +212,35 @@ include(Projects)
 ################################################################################
 # Layout
 ################################################################################
-
 # icu/zlib
 if(WIN32)
-if("${PLATFORM}" STREQUAL "x64")
-    fb_add_files(MAIN BOOT
-        LAYOUT_DIR /
-        ROOT_FILES
-            "extern/icu/icudt63l.dat"
-            "extern/icu/x64/Release/bin/icuuc63.dll"
-            "extern/icu/x64/Release/bin/icudt63.dll"
-            "extern/icu/x64/Release/bin/icuin63.dll"
-            "extern/zlib/x64/zlib1.dll"
-    )
+    if("${PLATFORM}" STREQUAL "x64")
+        fb_add_files(MAIN BOOT
+            LAYOUT_DIR ${LODIR_LIB}
+            ROOT_FILES
+                "extern/icu/icudt63l.dat"
+                "extern/icu/x64/Release/bin/icuuc63.dll"
+                "extern/icu/x64/Release/bin/icudt63.dll"
+                "extern/icu/x64/Release/bin/icuin63.dll"
+                "extern/zlib/x64/zlib1.dll"
+        )
+    else()
+        fb_add_files(MAIN BOOT
+            LAYOUT_DIR ${LODIR_LIB}
+            ROOT_FILES
+                "extern/icu/icudt63l.dat"
+                "extern/icu/Win32/Release/bin/icuuc63.dll"
+                "extern/icu/Win32/Release/bin/icudt63.dll"
+                "extern/icu/Win32/Release/bin/icuin63.dll"
+                "extern/zlib/Win32/zlib1.dll"
+        )
+    endif()
 else()
     fb_add_files(MAIN BOOT
-        LAYOUT_DIR /
-        ROOT_FILES
-            "extern/icu/icudt63l.dat"
-            "extern/icu/Win32/Release/bin/icuuc63.dll"
-            "extern/icu/Win32/Release/bin/icudt63.dll"
-            "extern/icu/Win32/Release/bin/icuin63.dll"
-            "extern/zlib/Win32/zlib1.dll"
+        LAYOUT_DIR ${LODIR_LIB}
+        FILES
+            ${COMMON_ICU_DEPS}
     )
-endif()
 endif()
 
 # config files

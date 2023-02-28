@@ -53,7 +53,126 @@ define_property(TARGET PROPERTY FB_DEPLOY_PATH)
 # functions
 ################################################################################
 
-#
+macro(_fb_fetch_arguments type flag)
+    if(NOT _ARG_FLAG)
+        # フラグなし
+        if(_ARG_BUFF)
+            message(WARNING "SPECIFIED INVALID PARAMS BEFORE KEYWORD, PARAMS: ${_ARG_BUFF}")
+            list(APPEND "_${prefix}_UNPARSED_ARGUMENTS" ${_ARG_BUFF})
+        endif()
+    elseif(${_ARG_TYPE} STREQUAL "OPTION")
+        set("_${prefix}_${_ARG_FLAG}" TRUE)
+        if(_ARG_BUFF)
+            message(WARNING "SPECIFIED INVALID PARAMS AFTER OPTIONAL KEYWORD, KEYWORD: ${_ARG_FLAG}, PARAMS: ${_ARG_BUFF}")
+            list(APPEND "_${prefix}_UNPARSED_ARGUMENTS" ${_ARG_BUFF})
+        endif()
+    elseif(${_ARG_TYPE} STREQUAL "ONE")
+        if(NOT _ARG_BUFF)
+            list(APPEND "_${prefix}_KEYWORDS_MISSING_VALUES" "${_ARG_FLAG}")
+        else()
+            list(POP_FRONT _ARG_BUFF _ARG_VALUE)
+            set("_${prefix}_${_ARG_FLAG}" "${_ARG_VALUE}")
+            if(_ARG_BUFF)
+                message(WARNING "SPECIFIED TOO MANY PARAMS, KEYWORD: ${_ARG_FLAG}, PARAMS: ${_ARG_BUFF}")
+                list(APPEND "_${prefix}_UNPARSED_ARGUMENTS" ${_ARG_BUFF})
+            endif()
+        endif()
+    elseif(${_ARG_TYPE} STREQUAL "MULTI")
+        if(NOT _ARG_BUFF)
+            list(APPEND "_${prefix}_KEYWORDS_MISSING_VALUES" "${_ARG_FLAG}")
+        else()
+            set("_${prefix}_${_ARG_FLAG}" ${_ARG_BUFF})
+        endif()
+    elseif(${_ARG_TYPE} STREQUAL "CONDITION")
+        if(NOT _ARG_BUFF)
+            list(APPEND "_${prefix}_KEYWORDS_MISSING_VALUES" "${_ARG_FLAG}")
+        else()
+            list(POP_FRONT _ARG_BUFF _ARG_CONDITION)
+            if(NOT _ARG_BUFF)
+                # 条件のみあって、値がない
+                list(APPEND "_${prefix}_KEYWORDS_MISSING_VALUES" "${_ARG_FLAG}")
+            elseif(DEFINED "${_ARG_CONDITION}" AND "${${_ARG_CONDITION}}")
+                string(REPLACE ";" "\\;" _ARG_VALUES "${_ARG_BUFF}")
+                list(APPEND "_${prefix}_${_ARG_FLAG}" "${_ARG_VALUES}")
+            endif()
+        endif()
+    else()
+        message(FATAL_ERROR "INTERNAL INCONSISTENCY, UNKNOWN TYPE: ${_ARG_TYPE}")
+    endif()
+
+    set(_ARG_TYPE "${type}")
+    set(_ARG_FLAG "${flag}")
+    set(_ARG_BUFF "")
+endmacro()
+
+# fb_parse_arguments
+#   <prefix>
+#   <options>
+#   <onevalue>
+#   <multivalue>
+#   <condset>
+#   <args>...
+function(fb_parse_arguments prefix options onevalue multivalue condset)
+
+    # チェック
+    if(NOT prefix)
+        message(WARNING "prefix WAS EMPTY.")
+    endif()
+
+    # 初期化
+    set(_ARG_TYPE "")
+    set(_ARG_FLAG "")
+    set(_ARG_BUFF "")
+
+    # 結果変数の初期化
+    foreach(FLAG IN LISTS options)
+        set("_${prefix}_${FLAG}" FALSE)
+    endforeach()
+    foreach(FLAG IN LISTS onevalue multivalue condset)
+        unset("_${prefix}_${FLAG}")
+    endforeach()
+    set("_${prefix}_UNPARSED_ARGUMENTS"         "")
+    set("_${prefix}_KEYWORDS_MISSING_VALUES"    "")
+
+    # パース
+    foreach(i IN LISTS ARGN)
+        if(i IN_LIST options)
+            _fb_fetch_arguments("OPTION" "${i}")
+        elseif(i IN_LIST onevalue)
+            _fb_fetch_arguments("ONE" "${i}")
+        elseif(i IN_LIST multivalue)
+            _fb_fetch_arguments("MULTI" "${i}")
+        elseif(i IN_LIST condset)
+            _fb_fetch_arguments("CONDITION" "${i}")
+        else()
+            list(APPEND _ARG_BUFF "${i}")
+        endif()
+    endforeach()
+
+    _fb_fetch_arguments("" "")
+
+    # 結果変数の転記
+    foreach(FLAG IN ITEMS
+        ${options}
+        ${onevalue}
+        ${multivalue}
+        ${condset}
+        "UNPARSED_ARGUMENTS"
+        "KEYWORDS_MISSING_VALUES")
+        
+        if(DEFINED "_${prefix}_${FLAG}")
+            set("${prefix}_${FLAG}" "${_${prefix}_${FLAG}}" PARENT_SCOPE)
+        else()
+            unset("${prefix}_${FLAG}" PARENT_SCOPE)
+        endif()
+    endforeach()
+endfunction()
+# for fb_parse_arguments
+set(COMMON TRUE)
+
+# get_target_suffix
+#   <variable>
+#   <target>
 function(get_target_suffix variable target)
     get_target_property(TGT_TYPE "${target}" TYPE)
 
@@ -345,6 +464,29 @@ function(fb_add_executable target)
         endif()
     endforeach()
     add_executable("${target}" ALIAS "${target}_${EXE_BUILD_BASE}")
+endfunction()
+
+# fb_target_symbols
+#   <target>
+#   SYMBOL <cond> <files>
+function(fb_target_symbols target)
+    fb_parse_arguments(SYM "" "" "" "SYMBOL" ${ARGN})
+
+    get_target_property(TGT_BUILDS "${target}" FB_BUILD_TYPES)
+    foreach(BUILD IN LISTS TGT_BUILDS)
+        target_sources("${target}_${BUILD}"
+            PRIVATE
+                ${SYM_SYMBOL}
+        )
+        if(APPLE)
+            list(TRANSFORM SYM_SYMBOL PREPEND "-exported_symbols_list," OUTPUT_VARIABLE SYM_LINKER)
+            list(JOIN SYM_LINKER "," SYM_LINKER)
+            set_target_properties("${target}_${BUILD}"
+                PROPERTIES
+                    LINK_OPTIONS "LINKER:${SYM_LINKER}"
+            )
+        endif()
+    endforeach()
 endfunction()
 
 # fb_target_resources
