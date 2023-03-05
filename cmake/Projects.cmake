@@ -813,6 +813,8 @@ fb_target_include_directories(gpre_common
 )
 fb_target_sources(gpre_common
     ROOT_PRIVATE
+        "src/include/firebird/IdlFbInterfaces.h"
+
         "src/gpre/cmd.cpp"
         "src/gpre/cme.cpp"
         "src/gpre/cmp.cpp"
@@ -867,9 +869,9 @@ target_sources(gpre_boot
         "${FIREBIRD_SOURCE_DIR}/src/yvalve/gds.cpp"
 )
 add_custom_command(
-    OUTPUT  "${FIREBIRD_EXEC_DIR}/boot/bin/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}"
+    OUTPUT  "${FIREBIRD_EXEC_DIR}/boot${LODIR_BIN}/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}"
     DEPENDS gpre_boot
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_boot>" "${FIREBIRD_EXEC_DIR}/boot/bin/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_boot>" "${FIREBIRD_EXEC_DIR}/boot${LODIR_BIN}/gpre_boot${CMAKE_EXECUTABLE_SUFFIX}"
     VERBATIM
 )
 
@@ -890,9 +892,9 @@ target_sources(gpre_main
         "${FIREBIRD_GEN_DIR}/boot/gpre/std/gpre_meta.cpp"
 )
 add_custom_command(
-    OUTPUT  "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}"
+    OUTPUT  "${FIREBIRD_EXEC_DIR}/boot${LODIR_BIN}/gpre${CMAKE_EXECUTABLE_SUFFIX}"
     DEPENDS gpre_main
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_main>" "${FIREBIRD_EXEC_DIR}/boot/bin/gpre${CMAKE_EXECUTABLE_SUFFIX}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:gpre_main>" "${FIREBIRD_EXEC_DIR}/boot${LODIR_BIN}/gpre${CMAKE_EXECUTABLE_SUFFIX}"
     VERBATIM
 )
 

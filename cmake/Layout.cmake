@@ -372,6 +372,7 @@ function(fb_add_library target type)
                 FB_BUILD_TYPES  "${LIB_BUILD_TYPES}"
                 ARCHIVE_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
                 LIBRARY_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
+                RUNTIME_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
                 OUTPUT_NAME     "${LIB_OUTPUT_NAME}"
         )
         if(APPLE)
