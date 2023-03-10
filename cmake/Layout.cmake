@@ -515,6 +515,28 @@ function(fb_target_resources target)
     endforeach()
 endfunction()
 
+# fb_target_compile_options
+#   <target>
+#   INTERFACE       <definitions>
+#   PUBLIC          <definitions>
+#   PRIVATE         <definitions>
+function(fb_target_compile_options target)
+    cmake_parse_arguments(OPT "" "" "INTERFACE;PUBLIC;PRIVATE" ${ARGN})
+
+    get_target_property(TGT_BUILDS "${target}" FB_BUILD_TYPES)
+
+    foreach(BUILD IN LISTS TGT_BUILDS)
+        target_compile_options("${target}_${BUILD}"
+            INTERFACE
+                ${OPT_INTERFACE}
+            PUBLIC
+                ${OPT_PUBLIC}
+            PRIVATE
+                ${OPT_PRIVATE}
+        )
+    endforeach()
+endfunction()
+
 # fb_target_compile_definitions
 #   <target>
 #   INTERFACE       <definitions>
