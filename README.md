@@ -1,5 +1,6 @@
-[![Build Status (GitHub)](https://github.com/FirebirdSQL/firebird/actions/workflows/main.yml/badge.svg?branch=v4.0-release)](https://github.com/FirebirdSQL/firebird/actions/workflows/main.yml?query=branch%3Av4.0-release)
-[![Build Status (AppVeyor)](https://ci.appveyor.com/api/projects/status/github/FirebirdSQL/firebird?branch=master&svg=true)](https://ci.appveyor.com/project/FirebirdSQL/firebird)
+# Firebird Embedded
+
+WindowsとmacOSの組み込み用として、CMakeビルド化したFirebirdです。
 
 # Firebird README
 
