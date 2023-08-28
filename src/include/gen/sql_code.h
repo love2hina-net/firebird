@@ -837,7 +837,7 @@ static const struct {
 	{335545134, -902}, /* 814 overriding_without_identity */
 	{335545135, -902}, /* 815 overriding_system_invalid */
 	{335545136, -902}, /* 816 overriding_user_invalid */
-	{335545137, -902}, /* 817 overriding_system_missing */
+	{335545137, -902}, /* 817 overriding_missing */
 	{335545138, -842}, /* 818 decprecision_err */
 	{335545139, -901}, /* 819 decfloat_divide_by_zero */
 	{335545140, -901}, /* 820 decfloat_inexact_result */
@@ -1458,6 +1458,11 @@ static const struct {
 	{337117259, -901}, /*  75 nbackup_deco_parse */
 	{337117261, -901}, /*  77 nbackup_lostrec_guid_db */
 	{337117265, -901}, /*  81 nbackup_seq_misuse */
+	{337117268, -901}, /*  84 nbackup_wrong_param */
+	{337117269, -901}, /*  85 nbackup_clean_hist_misuse */
+	{337117270, -901}, /*  86 nbackup_clean_hist_missed */
+	{337117271, -901}, /*  87 nbackup_keep_hist_missed */
+	{337117272, -901}, /*  88 nbackup_second_keep_switch */
 	{337182750, -901}, /*  30 trace_conflict_acts */
 	{337182751, -901}, /*  31 trace_act_notfound */
 	{337182752, -901}, /*  32 trace_switch_once */

@@ -4023,7 +4023,6 @@ const StmtNode* InAutonomousTransactionNode::execute(thread_db* tdbb, jrd_req* r
 		jrd_tra* const org_transaction = request->req_transaction;
 		fb_assert(tdbb->getTransaction() == org_transaction);
 
-
 		ULONG transaction_flags = org_transaction->tra_flags;
 
 		// Replace Read Consistency by Concurrecy isolation mode
@@ -4034,6 +4033,7 @@ const StmtNode* InAutonomousTransactionNode::execute(thread_db* tdbb, jrd_req* r
 											   org_transaction->tra_lock_timeout,
 											   org_transaction);
 
+		request->pushTransaction();
 		TRA_attach_request(transaction, request);
 		tdbb->setTransaction(transaction);
 
@@ -4044,12 +4044,13 @@ const StmtNode* InAutonomousTransactionNode::execute(thread_db* tdbb, jrd_req* r
 		}
 		catch (Exception&)
 		{
+			TRA_detach_request(request);
+			request->popTransaction();
 			TRA_attach_request(org_transaction, request);
 			tdbb->setTransaction(org_transaction);
 			throw;
 		}
 
-		request->pushTransaction(org_transaction);
 		impure->traNumber = transaction->tra_number;
 
 		const Savepoint* const savepoint = transaction->startSavepoint();
@@ -4155,6 +4156,10 @@ const StmtNode* InAutonomousTransactionNode::execute(thread_db* tdbb, jrd_req* r
 	}
 
 	impure->traNumber = impure->savNumber = 0;
+
+	// Normally request is detached by commit/rollback, but they may fail.
+	// It should be done before request->popTransaction().
+	TRA_detach_request(request);
 	transaction = request->popTransaction();
 
 	TRA_attach_request(transaction, request);
@@ -7072,7 +7077,11 @@ StmtNode* StoreNode::internalDsqlPass(DsqlCompilerScratch* dsqlScratch,
 	else
 	{
 		values = doDsqlPass(dsqlScratch, dsqlValues, false);
-		needSavePoint = SubSelectFinder::find(dsqlScratch->getPool(), values);
+		// If this INSERT belongs to some PSQL code block and has subqueries
+		// inside its VALUES part, signal the caller to create a savepoint frame.
+		// See bug #5613 (aka CORE-5337) for details.
+		needSavePoint = (dsqlScratch->flags & DsqlCompilerScratch::FLAG_BLOCK) &&
+			SubSelectFinder::find(dsqlScratch->getPool(), values);
 	}
 
 	// Process relation
@@ -7233,13 +7242,9 @@ StmtNode* StoreNode::internalDsqlPass(DsqlCompilerScratch* dsqlScratch,
 StmtNode* StoreNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
 {
 	bool needSavePoint;
-	StmtNode* node = SavepointEncloseNode::make(dsqlScratch->getPool(), dsqlScratch,
-		internalDsqlPass(dsqlScratch, false, needSavePoint));
+	const auto node = internalDsqlPass(dsqlScratch, false, needSavePoint);
 
-	if (!needSavePoint || nodeIs<SavepointEncloseNode>(node))
-		return node;
-
-	return FB_NEW_POOL(dsqlScratch->getPool()) SavepointEncloseNode(dsqlScratch->getPool(), node);
+	return SavepointEncloseNode::make(dsqlScratch->getPool(), dsqlScratch, node, needSavePoint);
 }
 
 string StoreNode::internalPrint(NodePrinter& printer) const
@@ -7718,26 +7723,26 @@ const StmtNode* UserSavepointNode::execute(thread_db* tdbb, jrd_req* request, Ex
 	if (request->req_operation == jrd_req::req_evaluate &&
 		!(transaction->tra_flags & TRA_system))
 	{
+		Savepoint* savepoint = nullptr, *previous = transaction->tra_save_point;
+
 		// Skip the savepoint created by EXE_start
-		Savepoint* const previous = transaction->tra_save_point;
-
-		// Find savepoint
-		Savepoint* savepoint = NULL;
-
-		for (Savepoint::Iterator iter(previous); *iter; ++iter)
+		if (const auto start = previous ? previous->getNext() : nullptr)
 		{
-			Savepoint* const current = *iter;
-
-			if (current == previous)
-				continue;
-
-			if (current->isSystem())
-				break;
-
-			if (current->getName() == name)
+			// Find savepoint
+			for (Savepoint::Iterator iter(start); *iter; ++iter)
 			{
-				savepoint = current;
-				break;
+				const auto current = *iter;
+
+				if (current->isSystem())
+					break;
+
+				if (current->getName() == name)
+				{
+					savepoint = current;
+					break;
+				}
+
+				previous = current;
 			}
 		}
 
@@ -8376,12 +8381,18 @@ DmlNode* SavepointEncloseNode::parse(thread_db* tdbb, MemoryPool& pool, Compiler
 	return node;
 }
 
-StmtNode* SavepointEncloseNode::make(MemoryPool& pool, DsqlCompilerScratch* dsqlScratch, StmtNode* node)
+StmtNode* SavepointEncloseNode::make(MemoryPool& pool, DsqlCompilerScratch* dsqlScratch, StmtNode* node, bool force)
 {
-	// Add savepoint wrapper around the statement having error handlers
+	// Add savepoint wrapper around the statement having error handlers, or if requested explicitly
 
-	return dsqlScratch->errorHandlers ?
-		FB_NEW_POOL(pool) SavepointEncloseNode(pool, node) : node;
+	if (dsqlScratch->errorHandlers || force)
+	{
+		// Ensure that savepoints are never created around a DSQL statement
+		fb_assert(dsqlScratch->flags & DsqlCompilerScratch::FLAG_BLOCK);
+		return FB_NEW_POOL(pool) SavepointEncloseNode(pool, node);
+	}
+
+	return node;
 }
 
 SavepointEncloseNode* SavepointEncloseNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
@@ -9001,11 +9012,7 @@ StmtNode* UpdateOrInsertNode::dsqlPass(DsqlCompilerScratch* dsqlScratch)
 	if (!returning)
 		dsqlScratch->getStatement()->setType(DsqlCompiledStatement::TYPE_INSERT);
 
-	StmtNode* ret = SavepointEncloseNode::make(dsqlScratch->getPool(), dsqlScratch, list);
-	if (!needSavePoint || nodeIs<SavepointEncloseNode>(ret))
-		return ret;
-
-	return FB_NEW_POOL(dsqlScratch->getPool()) SavepointEncloseNode(dsqlScratch->getPool(), ret);
+	return SavepointEncloseNode::make(dsqlScratch->getPool(), dsqlScratch, list, needSavePoint);
 }
 
 string UpdateOrInsertNode::internalPrint(NodePrinter& printer) const
@@ -10184,14 +10191,11 @@ static void preprocessAssignments(thread_db* tdbb, CompilerScratch* csb,
 
 		if (identityType == IDENT_TYPE_BY_DEFAULT && *insertOverride == OverrideClause::SYSTEM_VALUE)
 			ERR_post(Arg::Gds(isc_overriding_system_invalid) << relation->rel_name);
-
-		if (identityType == IDENT_TYPE_ALWAYS && *insertOverride == OverrideClause::USER_VALUE)
-			ERR_post(Arg::Gds(isc_overriding_user_invalid) << relation->rel_name);
 	}
 	else
 	{
 		if (identityType == IDENT_TYPE_ALWAYS)
-			ERR_post(Arg::Gds(isc_overriding_system_missing) << relation->rel_name);
+			ERR_post(Arg::Gds(isc_overriding_missing) << relation->rel_name);
 	}
 }
 

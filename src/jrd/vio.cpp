@@ -666,8 +666,6 @@ void VIO_backout(thread_db* tdbb, record_param* rpb, const jrd_tra* transaction)
 		else
 		{
 			// There is cleanup to be done.  Bring the old version forward first
-
-			rpb->rpb_flags &= ~(rpb_fragment | rpb_incomplete | rpb_chained | rpb_gc_active | rpb_long_tranum);
 			DPM_update(tdbb, rpb, 0, transaction);
 			delete_tail(tdbb, &temp2, rpb->rpb_page, 0, 0);
 		}
@@ -1405,6 +1403,8 @@ void VIO_data(thread_db* tdbb, record_param* rpb, MemoryPool* pool)
 		const ULONG back_page  = rpb->rpb_b_page;
 		const USHORT back_line = rpb->rpb_b_line;
 		const USHORT save_flags = rpb->rpb_flags;
+		const ULONG save_f_page = rpb->rpb_f_page;
+		const USHORT save_f_line = rpb->rpb_f_line;
 
 		while (rpb->rpb_flags & rpb_incomplete)
 		{
@@ -1416,6 +1416,8 @@ void VIO_data(thread_db* tdbb, record_param* rpb, MemoryPool* pool)
 		rpb->rpb_b_page = back_page;
 		rpb->rpb_b_line = back_line;
 		rpb->rpb_flags = save_flags;
+		rpb->rpb_f_page = save_f_page;
+		rpb->rpb_f_line = save_f_line;
 	}
 
 	CCH_RELEASE(tdbb, &rpb->getWindow(tdbb));
@@ -1579,7 +1581,6 @@ bool VIO_erase(thread_db* tdbb, record_param* rpb, jrd_tra* transaction)
 		{
 		case rel_database:
 		case rel_log:
-		case rel_backup_history:
 		case rel_global_auth_mapping:
 			protect_system_table_delupd(tdbb, relation, "DELETE", true);
 			break;
@@ -1676,6 +1677,10 @@ bool VIO_erase(thread_db* tdbb, record_param* rpb, jrd_tra* transaction)
 		case rel_funs:
 			protect_system_table_delupd(tdbb, relation, "DELETE");
 			EVL_field(0, rpb->rpb_record, f_fun_name, &desc);
+
+			if (EVL_field(0, rpb->rpb_record, f_fun_pkg_name, &desc2))
+				MOV_get_metaname(tdbb, &desc2, package_name);
+
 			EVL_field(0, rpb->rpb_record, f_fun_id, &desc2);
 			id = MOV_get_long(tdbb, &desc2, 0);
 
@@ -1860,6 +1865,11 @@ bool VIO_erase(thread_db* tdbb, record_param* rpb, jrd_tra* transaction)
 			EVL_field(0, rpb->rpb_record, f_prv_o_type, &desc2);
 			id = MOV_get_long(tdbb, &desc2, 0);
 			DFW_post_work(transaction, dfw_grant, &desc, id);
+			break;
+
+		case rel_backup_history:
+			if (!tdbb->getAttachment()->locksmith(tdbb, USE_NBACKUP_UTILITY))
+				protect_system_table_delupd(tdbb, relation, "DELETE", true);
 			break;
 
 		case rel_pub_tables:
@@ -4782,6 +4792,7 @@ void Database::garbage_collector(Database* dbb)
 		attachment->att_user = &user;
 
 		BackgroundContextHolder tdbb(dbb, attachment, &status_vector, FB_FUNCTION);
+		Jrd::Attachment::UseCountHolder use(attachment);
 		tdbb->markAsSweeper();
 
 		record_param rpb;
@@ -6052,7 +6063,6 @@ static void replace_record(thread_db*		tdbb,
 #endif
 
 	record_param temp = *rpb;
-	rpb->rpb_flags &= ~(rpb_fragment | rpb_incomplete | rpb_chained | rpb_gc_active | rpb_long_tranum);
 	DPM_update(tdbb, rpb, stack, transaction);
 	delete_tail(tdbb, &temp, rpb->rpb_page, 0, 0);
 

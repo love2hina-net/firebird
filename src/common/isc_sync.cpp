@@ -809,9 +809,24 @@ int SharedMemoryBase::eventWait(event_t* event, const SLONG value, const SLONG m
 	struct timespec timer;
 	if (micro_seconds > 0)
 	{
-		timer.tv_sec = time(NULL);
-		timer.tv_sec += micro_seconds / 1000000;
-		timer.tv_nsec = 1000 * (micro_seconds % 1000000);
+#if defined(HAVE_CLOCK_GETTIME)
+		clock_gettime(CLOCK_REALTIME, &timer);
+#elif defined(HAVE_GETTIMEOFDAY)
+		struct timeval tp;
+		GETTIMEOFDAY(&tp);
+		timer.tv_sec = tp.tv_sec;
+		timer.tv_nsec = tp.tv_usec * 1000;
+#else
+		struct timeb time_buffer;
+		ftime(&time_buffer);
+		timer.tv_sec = time_buffer.time;
+		timer.tv_nsec = time_buffer.millitm * 1000000;
+#endif
+		const SINT64 BILLION = 1000000000;
+		const SINT64 nanos = (SINT64) timer.tv_sec * BILLION + timer.tv_nsec +
+			(SINT64) micro_seconds * 1000;
+		timer.tv_sec = nanos / BILLION;
+		timer.tv_nsec = nanos % BILLION;
 	}
 
 	int ret = FB_SUCCESS;
@@ -1184,6 +1199,19 @@ void SharedMemoryBase::unlinkFile()
 	TEXT expanded_filename[MAXPATHLEN];
 	iscPrefixLock(expanded_filename, sh_mem_name, false);
 
+	unlinkFile(expanded_filename);
+}
+
+PathName SharedMemoryBase::getMapFileName()
+{
+	TEXT expanded_filename[MAXPATHLEN];
+	iscPrefixLock(expanded_filename, sh_mem_name, false);
+
+	return PathName(expanded_filename);
+}
+
+void SharedMemoryBase::unlinkFile(const TEXT* expanded_filename) noexcept
+{
 	// We can't do much (specially in dtors) when it fails
 	// therefore do not check for errors - at least it's just /tmp.
 
@@ -2680,7 +2708,7 @@ static bool make_object_name(TEXT* buffer, size_t bufsize,
 
 	// CVC: I'm not convinced that if this call has no space to put the prefix,
 	// we can ignore that fact, hence I changed that signature, too.
-	if (!fb_utils::prefix_kernel_object_name(buffer, bufsize))
+	if (!fb_utils::private_kernel_object_name(buffer, bufsize))
 	{
 		SetLastError(ERROR_FILENAME_EXCED_RANGE);
 		return false;

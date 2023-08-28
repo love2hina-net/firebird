@@ -837,7 +837,7 @@ static const struct {
 	{335545134, "42000"}, // 814 overriding_without_identity
 	{335545135, "42000"}, // 815 overriding_system_invalid
 	{335545136, "42000"}, // 816 overriding_user_invalid
-	{335545137, "42000"}, // 817 overriding_system_missing
+	{335545137, "42000"}, // 817 overriding_missing
 	{335545138, "HY104"}, // 818 decprecision_err
 	{335545139, "22012"}, // 819 decfloat_divide_by_zero
 	{335545140, "22000"}, // 820 decfloat_inexact_result
@@ -1458,6 +1458,11 @@ static const struct {
 	{337117259, "54023"}, //  75 nbackup_deco_parse
 	{337117261, "00000"}, //  77 nbackup_lostrec_guid_db
 	{337117265, "00000"}, //  81 nbackup_seq_misuse
+	{337117268, "00000"}, //  84 nbackup_wrong_param
+	{337117269, "00000"}, //  85 nbackup_clean_hist_misuse
+	{337117270, "00000"}, //  86 nbackup_clean_hist_missed
+	{337117271, "00000"}, //  87 nbackup_keep_hist_missed
+	{337117272, "00000"}, //  88 nbackup_second_keep_switch
 	{337182750, "00000"}, //  30 trace_conflict_acts
 	{337182751, "00000"}, //  31 trace_act_notfound
 	{337182752, "00000"}, //  32 trace_switch_once
