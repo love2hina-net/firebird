@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.24)
 
-project("Firebird" C CXX)
+project("firebird" C CXX)
 
 set(FIREBIRD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(FIREBIRD_BINARY_DIR "${CMAKE_BINARY_DIR}/${PROJECT_NAME}")
@@ -86,8 +86,8 @@ else()
             COMMAND chmod a+rw "${LIB_COPY}"
             COMMAND install_name_tool
                 -id "@rpath/${LIB_FILENAME}"
-                -change "@loader_path/libicudata.72.dylib" "@loader_path/libicudata.72.1.dylib"
-                -change "@loader_path/libicuuc.72.dylib" "@loader_path/libicuuc.72.1.dylib"
+                -change "@loader_path/libicudata.73.dylib" "@loader_path/libicudata.73.2.dylib"
+                -change "@loader_path/libicuuc.73.dylib" "@loader_path/libicuuc.73.2.dylib"
                 "${LIB_COPY}"
             VERBATIM
         )

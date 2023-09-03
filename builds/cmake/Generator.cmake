@@ -148,6 +148,7 @@ if(UNIX)
             OUTPUT "${FIREBIRD_GEN_DIR}/common/${VER_FILE}"
             DEPENDS "${FIREBIRD_SOURCE_DIR}/builds/posix/${VER_FILE}"
             SHELL UNIX bash -c
+            SHELL_SEPARATOR UNIX " && "
             COMMAND UNIX
                 ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/common/${VER_FILE}"
             COMMAND APPLE
