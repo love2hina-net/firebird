@@ -59,7 +59,7 @@ include(Layout)
 # icu
 if(WIN32)
     set(ICU_INC_PATH "${FIREBIRD_SOURCE_DIR}/extern/icu/include")
-else()
+elseif(APPLE)
     function(fb_find_icu_library variable libname)
         cmake_parse_arguments(ICU "" "" "PATHS" ${ARGN})
 
