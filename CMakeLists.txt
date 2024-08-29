@@ -122,7 +122,9 @@ endif()
 # zlib
 if(NOT HAVE_ZLIB_H AND WIN32)
     add_custom_command(
-        OUTPUT "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
+        OUTPUT  "${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.h"
+                "${FIREBIRD_SOURCE_DIR}/extern/zlib/x64/zlib1.dll"
+                "${FIREBIRD_SOURCE_DIR}/extern/zlib/Win32/zlib1.dll"
         COMMAND ${FIREBIRD_SOURCE_DIR}/extern/zlib/zlib.exe -y
         COMMENT "Extracting pre-built zlib"
     )
