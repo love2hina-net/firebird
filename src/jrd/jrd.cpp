@@ -1851,8 +1851,7 @@ JAttachment* JProvider::internalAttach(CheckStatusWrapper* user_status, const ch
 
 				// Initialize TIP cache. We do this late to give SDW a chance to
 				// work while we read states for all interesting transactions
-				dbb->dbb_tip_cache = FB_NEW_POOL(*dbb->dbb_permanent) TipCache(dbb);
-				dbb->dbb_tip_cache->initializeTpc(tdbb);
+				dbb->startTipCache(tdbb);
 
 				// linger
 				dbb->dbb_linger_seconds = MET_get_linger(tdbb);
@@ -3164,8 +3163,7 @@ JAttachment* JProvider::createDatabase(CheckStatusWrapper* user_status, const ch
 			config->notify();
 
 			// Initialize TIP cache
-			dbb->dbb_tip_cache = FB_NEW_POOL(*dbb->dbb_permanent) TipCache(dbb);
-			dbb->dbb_tip_cache->initializeTpc(tdbb);
+			dbb->startTipCache(tdbb);
 
 			// Init complete - we can release dbInitMutex
 			dbb->dbb_flags &= ~(DBB_new | DBB_creating);
@@ -4365,12 +4363,12 @@ void JService::query(CheckStatusWrapper* user_status,
 					    receiveItems, bufferLength, buffer);
 
 			// If there is a status vector from a service thread, copy it into the thread status
-			const FbStatusVector* from = svc->getStatus();
-			if (from->getState())
+			Service::StatusAccessor status = svc->getStatusAccessor();
+			if (status->getState())
 			{
-				fb_utils::copyStatus(user_status, from);
+				fb_utils::copyStatus(user_status, status);
 				// Empty out the service status vector
-				svc->initStatus();
+				status.init();
 				return;
 			}
 		}
@@ -4432,9 +4430,10 @@ void JService::start(CheckStatusWrapper* user_status, unsigned int spbLength, co
 
 		svc->start(spbLength, spb);
 
-		if (svc->getStatus()->getState() & IStatus::STATE_ERRORS)
+		UtilSvc::StatusAccessor status = svc->getStatusAccessor();
+		if (status->getState() & IStatus::STATE_ERRORS)
 		{
-			fb_utils::copyStatus(user_status, svc->getStatus());
+			fb_utils::copyStatus(user_status, status);
 			return;
 		}
 	}
@@ -6441,8 +6440,7 @@ void JReplicator::freeEngineData(Firebird::CheckStatusWrapper* user_status)
 {
 	try
 	{
-		EngineContextHolder tdbb(user_status, this, FB_FUNCTION);
-		check_database(tdbb);
+		EngineContextHolder tdbb(user_status, this, FB_FUNCTION, AttachmentHolder::ATT_NO_SHUTDOWN_CHECK);
 
 		try
 		{
@@ -7477,11 +7475,17 @@ static JAttachment* create_attachment(const PathName& alias_name,
 
 static void check_single_maintenance(thread_db* tdbb)
 {
-	UCHAR spare_memory[RAW_HEADER_SIZE + PAGE_ALIGNMENT];
-	UCHAR* header_page_buffer = FB_ALIGN(spare_memory, PAGE_ALIGNMENT);
+	Database* const dbb = tdbb->getDatabase();
+
+	const ULONG ioBlockSize = dbb->getIOBlockSize();
+	const ULONG headerSize = MAX(RAW_HEADER_SIZE, ioBlockSize);
+
+	HalfStaticArray<UCHAR, RAW_HEADER_SIZE + PAGE_ALIGNMENT> temp;
+	UCHAR* header_page_buffer = temp.getAlignedBuffer(headerSize, ioBlockSize);
+
 	Ods::header_page* const header_page = reinterpret_cast<Ods::header_page*>(header_page_buffer);
 
-	PIO_header(tdbb, header_page_buffer, RAW_HEADER_SIZE);
+	PIO_header(tdbb, header_page_buffer, headerSize);
 
 	if ((header_page->hdr_flags & Ods::hdr_shutdown_mask) == Ods::hdr_shutdown_single)
 	{
@@ -8218,8 +8222,11 @@ static void purge_attachment(thread_db* tdbb, StableAttachmentPart* sAtt, unsign
 			const TrigVector* const trig_disconnect =
 				attachment->att_triggers[DB_TRIGGER_DISCONNECT];
 
+			// ATT_resetting may be set here only in a case when running on disconnect triggers
+			// in ALTER SESSION RESET already failed and attachment was shut down.
+			// Trying them once again here makes no sense.
 			if (!forcedPurge &&
-				!(attachment->att_flags & ATT_no_db_triggers) &&
+				!(attachment->att_flags & (ATT_no_db_triggers | ATT_resetting)) &&
 				trig_disconnect && !trig_disconnect->isEmpty())
 			{
 				ThreadStatusGuard temp_status(tdbb);
@@ -8610,6 +8617,10 @@ static void unwindAttach(thread_db* tdbb, const Exception& ex, FbStatusVector* u
 		{
 			fb_assert(!dbb->locked());
 			ThreadStatusGuard temp_status(tdbb);
+
+			// In case when sweep attachment failed try to release appropriate lock
+			if (options.dpb_sweep)
+				dbb->clearSweepStarting();
 
 			const auto attachment = tdbb->getAttachment();
 
@@ -9753,6 +9764,8 @@ void TrigVector::release()
 
 void TrigVector::release(thread_db* tdbb)
 {
+	fb_assert(useCount.value() > 0);
+
 	if (--useCount == 0)
 	{
 		decompile(tdbb);

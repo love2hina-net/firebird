@@ -8,7 +8,7 @@
 ;  for the specific language governing rights and limitations under the
 ;  License.
 ;
-;  The Original Code is copyright 2001-2021 Paul Reeves for IBPhoenix.
+;  The Original Code is copyright 2001-2024 Paul Reeves for IBPhoenix.
 ;
 ;  The Initial Developer of the Original Code is Paul Reeves for IBPhoenix.
 ;
@@ -138,7 +138,7 @@
 ; even Windows 7 are now deprecated and hopefully no production install of
 ; W2K8 R2 is unpatched. If necessary we can define 'support_legacy_windows' to
 ; roll back this new feature but users who need to deploy to what are now
-; ancient versions of windows are advised to manually install Firebird 4.0 with
+; ancient versions of windows are advised to manually install Firebird with
 ; the zip package.
 #ifdef support_legacy_windows
 #define MINVER "6.0"
@@ -208,13 +208,6 @@
 #endif
 #endif
 
-#if FB_BUILD_TYPE == "T"
-;If we are still under development we can ignore some missing files.
-#define SkipFileIfDevStatus " skipifsourcedoesntexist "
-#else
-#define SkipFileIfDevStatus " "
-#endif
-
 ;This location is relative to SourceDir (declared below)
 #define FilesDir="output_" + PlatformTarget
 #if PlatformTarget == "x64"
@@ -242,12 +235,15 @@
 ;#endif
 
 
-;Some more strings to distinguish the name of final executable
+; Some more strings to distinguish the name of final executable
+; shipping with debug symbols should not be confused with actual debug builds
 #ifdef ship_pdb
 #define pdb_str="-pdb"
 #else
 #define pdb_str=""
 #endif
+; This is intended for builds that have been built with the debug flag
+; So far we have never actually released such a build.
 #if GetEnv("FBBUILD_BUILDTYPE") == "debug"
 #define debug_str="-debug"
 #else
@@ -377,9 +373,9 @@ Name: CopyFbClientAsGds32Task; Description: {cm:CopyFbClientAsGds32Task}; Compon
 [Run]
 ; due to the changes required to support MSVC15 support for earlier versions is now broken.
 #if Int(msvc_runtime_major_version,14) >= 14
-Filename: msiexec.exe; Parameters: "/qn /norestart /i ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.msi"" /L*v ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.log"" "; StatusMsg: "Installing MSVC 32-bit runtime libraries to system directory"; Check: HasWI30; Components: ClientComponent;
+Filename: msiexec.exe; Parameters: "/qn /norestart /i ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.msi"" /L*v ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.log"" "; StatusMsg: {cm:InstallingMSVC32runtimes}; Check: HasWI30; Components: ClientComponent;
 #if PlatformTarget == "x64"
-Filename: msiexec.exe; Parameters: "/qn /norestart /i ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_x64.msi"" /L*v ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_x64.log"" ";  StatusMsg: "Installing MSVC 64-bit runtime libraries to system directory"; Check: HasWI30; Components: ClientComponent;
+Filename: msiexec.exe; Parameters: "/qn /norestart /i ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_x64.msi"" /L*v ""{tmp}\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_x64.log"" ";  StatusMsg: {cm:InstallingMSVC64runtimes}; Check: HasWI30; Components: ClientComponent;
 #endif
 #endif
 
@@ -460,8 +456,8 @@ Source: {#FilesDir}\fbtrace.conf; DestDir: {app}; DestName: fbtrace.conf; Compon
 Source: {#FilesDir}\databases.conf; DestDir: {app}; Components: ClientComponent; Flags: uninsneveruninstall onlyifdoesntexist
 Source: {#FilesDir}\replication.conf; DestDir: {app}; DestName: replication.conf.default; Components: ServerComponent;
 Source: {#FilesDir}\replication.conf; DestDir: {app}; Components: ServerComponent; Flags: uninsneveruninstall onlyifdoesntexist; check: NoReplicationConfExists;
-Source: {#FilesDir}\security4.fdb; DestDir: {app}; Destname: security4.fdb.empty; Components: ServerComponent;
-Source: {#FilesDir}\security4.fdb; DestDir: {app}; Components: ServerComponent; Flags: uninsneveruninstall onlyifdoesntexist
+Source: {#FilesDir}\security{#FB_MAJOR_VER}.fdb; DestDir: {app}; Destname: security{#FB_MAJOR_VER}.fdb.empty; Components: ServerComponent;
+Source: {#FilesDir}\security{#FB_MAJOR_VER}.fdb; DestDir: {app}; Components: ServerComponent; Check: ConfigureAuthentication; Flags: uninsneveruninstall onlyifdoesntexist
 Source: {#FilesDir}\firebird.msg; DestDir: {app}; Components: ClientComponent; Flags: sharedfile ignoreversion
 Source: {#FilesDir}\firebird.log; DestDir: {app}; Components: ServerComponent; Flags: uninsneveruninstall skipifsourcedoesntexist external dontcopy
 
@@ -485,8 +481,8 @@ Source: {#FilesDir}\fbsvcmgr.exe; DestDir: {app}; Components: DevAdminComponent;
 Source: {#FilesDir}\fbtracemgr.exe; DestDir: {app}; Components: DevAdminComponent; Flags: ignoreversion
 Source: {#FilesDir}\fbclient.dll; DestDir: {app}; Components: ClientComponent; Flags: overwritereadonly sharedfile promptifolder
 #if PlatformTarget == "x64"
-Source: {#WOW64Dir}\fbclient.dll; DestDir: {app}\WOW64; Components: ClientComponent; Flags: overwritereadonly sharedfile promptifolder {#SkipFileIfDevStatus}
-Source: {#WOW64Dir}\instclient.exe; DestDir: {app}\WOW64; Components: ClientComponent; Flags: sharedfile ignoreversion {#SkipFileIfDevStatus}
+Source: {#WOW64Dir}\fbclient.dll; DestDir: {app}\WOW64; Components: ClientComponent; Flags: overwritereadonly sharedfile promptifolder
+Source: {#WOW64Dir}\instclient.exe; DestDir: {app}\WOW64; Components: ClientComponent; Flags: sharedfile ignoreversion
 #endif
 Source: {#FilesDir}\icuuc??.dll; DestDir: {app}; Components: ClientComponent; Flags: sharedfile ignoreversion
 Source: {#FilesDir}\icuin??.dll; DestDir: {app}; Components: ClientComponent; Flags: sharedfile ignoreversion
@@ -516,8 +512,8 @@ Source: {#FilesDir}\{#msvcr_filename}{#msvc_runtime_major_version}{#msvc_runtime
 Source: {#FilesDir}\msvcp{#msvc_runtime_major_version}{#msvc_runtime_minor_version_0}.dll; DestDir: {app}; Components: ClientComponent; Flags: sharedfile;
 #if PlatformTarget == "x64"
 ;If we are installing on x64 we need some 32-bit libraries for compatibility with 32-bit applications
-Source: {#WOW64Dir}\{#msvcr_filename}{#msvc_runtime_major_version}{#msvc_runtime_minor_version_0}.dll; DestDir: {app}\WOW64; Components: ClientComponent; Flags: sharedfile {#SkipFileIfDevStatus};
-Source: {#WOW64Dir}\msvcp{#msvc_runtime_major_version}{#msvc_runtime_minor_version_0}.dll; DestDir: {app}\WOW64; Components: ClientComponent; Flags: sharedfile {#SkipFileIfDevStatus};
+Source: {#WOW64Dir}\{#msvcr_filename}{#msvc_runtime_major_version}{#msvc_runtime_minor_version_0}.dll; DestDir: {app}\WOW64; Components: ClientComponent; Flags: sharedfile;
+Source: {#WOW64Dir}\msvcp{#msvc_runtime_major_version}{#msvc_runtime_minor_version_0}.dll; DestDir: {app}\WOW64; Components: ClientComponent; Flags: sharedfile;
 #endif
 #endif  /* #if Int(msvc_runtime_major_version,14) >= 10 */
 
@@ -525,10 +521,10 @@ Source: {#WOW64Dir}\msvcp{#msvc_runtime_major_version}{#msvc_runtime_minor_versi
 #if PlatformTarget == "x64"
 ;MinVersion 0,5.0 means no version of Win9x and at least Win2k if NT O/S
 ;In addition, O/S must have Windows Installer 3.0.
-Source: {#FilesDir}\system32\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_x64.msi; DestDir: {tmp};  Check: HasWI30; MinVersion: {#MinVer}; Components: ClientComponent; Flags: {#SkipFileIfDevStatus}
-Source: {#WOW64Dir}\system32\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.msi; DestDir: {tmp}; Check: HasWI30; MinVersion: {#MinVer}; Components: ClientComponent; Flags: {#SkipFileIfDevStatus}
+Source: {#FilesDir}\system32\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_x64.msi; DestDir: {tmp};  Check: HasWI30; MinVersion: {#MinVer}; Components: ClientComponent;
+Source: {#WOW64Dir}\system32\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.msi; DestDir: {tmp}; Check: HasWI30; MinVersion: {#MinVer}; Components: ClientComponent;
 #else
-Source: {#FilesDir}\system32\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.msi; DestDir: {tmp}; Check: HasWI30; MinVersion: {#MinVer}; Components: ClientComponent; Flags: {#SkipFileIfDevStatus}
+Source: {#FilesDir}\system32\vccrt{#msvc_runtime_major_version}{#msvc_runtime_minor_version_1}_Win32.msi; DestDir: {tmp}; Check: HasWI30; MinVersion: {#MinVer}; Components: ClientComponent;
 #endif
 #endif
 
@@ -545,7 +541,7 @@ Source: {#FilesDir}\intl\fbintl.dll; DestDir: {app}\intl; Components: ServerComp
 Source: {#FilesDir}\intl\fbintl.conf; DestDir: {app}\intl; Components: ServerComponent; Flags: onlyifdoesntexist
 Source: {#FilesDir}\lib\*.*; DestDir: {app}\lib; Components: DevAdminComponent; Flags: ignoreversion;
 #if PlatformTarget == "x64"
-Source: {#WOW64Dir}\lib\*.lib; DestDir: {app}\WOW64\lib; Components: DevAdminComponent; Flags: ignoreversion {#SkipFileIfDevStatus}
+Source: {#WOW64Dir}\lib\*.lib; DestDir: {app}\WOW64\lib; Components: DevAdminComponent; Flags: ignoreversion
 #endif
 
 ;deprecated in FB4.0
@@ -567,11 +563,10 @@ Source: {#FilesDir}\misc\*.*; DestDir: {app}\misc; Components: ServerComponent; 
 
 Source: {#FilesDir}\tzdata\*.*; DestDir: {app}\tzdata; Components: ClientComponent; Flags: ignoreversion;
 
-;Source: {#FilesDir}\system32\Firebird2Control.cpl; DestDir: {sys}; Components: ServerComponent; MinVersion: {#MinVer}; Flags: sharedfile ignoreversion promptifolder restartreplace uninsrestartdelete; Check: InstallCPLApplet
 #endif /* files */
 
 #ifdef examples
-Source: {#FilesDir}\examples\*.*; DestDir: {app}\examples; Components: DevAdminComponent;  Flags: ignoreversion  createallsubdirs recursesubdirs {#SkipFileIfDevStatus};
+Source: {#FilesDir}\examples\*.*; DestDir: {app}\examples; Components: DevAdminComponent;  Flags: ignoreversion  createallsubdirs recursesubdirs;
 #endif
 
 #ifdef ship_pdb
@@ -612,9 +607,13 @@ program Setup;
 // Some global variables are also in FirebirdInstallEnvironmentChecks.inc
 // This is not ideal, but then this scripting environment is not ideal, either.
 // The basic point of the include files is to isolate chunks of code that are
-// a) Form a module or have common functionality
+// a) From a module or have common functionality
 // b) Debugged.
 // This hopefully keeps the main script simpler to follow.
+
+
+const
+  UNDEFINED = -1;
 
 Var
   InstallRootDir: String;
@@ -630,6 +629,8 @@ Var
                                 // databases.conf, fbtrace.conf and the security database.
 
   SYSDBAPassword: String;       // SYSDBA password
+
+  init_secdb: integer;          // Is set to UNDEFINED by default in InitializeSetup
 
 #ifdef setuplogging
 // Not yet implemented - leave log in %TEMP%
@@ -681,7 +682,7 @@ begin
 //	or
 //    (pos('/?',Uppercase(CommandLine)) > 0) or		// InnoSetup displays its own help if these switches are passed.
 //    (pos('/H',Uppercase(CommandLine)) > 0) ) 		// Note also that our help scren only appears after the Choose Language dialogue :-(
-	then begin
+  then begin
     ShowHelpDlg;
     result := False;
     Exit;
@@ -713,7 +714,7 @@ begin
     exit;
   end;
 
-  //By default we want to install and confugure,
+  //By default we want to install and configure,
   //unless subsequent analysis suggests otherwise.
   InstallAndConfigure := Install + Configure;
 
@@ -722,6 +723,7 @@ begin
   InitExistingInstallRecords;
   AnalyzeEnvironment;
   result := AnalysisAssessment;
+  init_secdb := UNDEFINED;
 
 end;
 
@@ -851,26 +853,42 @@ begin
 end;
 
 
-
-
 function InitSecurityDB: Boolean;
 var
   AStringList: TStringList;
   TempDir: String;
-	ResultCode: Integer;
-	CmdStr: string;
+  ResultCode: Integer;
+  CmdStr: string;
+  InputStr: string;
+  OutputStr: string;
 begin
-	TempDir := ExpandConstant( '{tmp}' );
-	CmdStr := ExpandConstant( '{app}\isql.exe' );
-	AStringList := TStringList.create;
-	with AStringList do begin
-		Add( 'create user ' + GetAdminUserName + ' password ''' + GetAdminUserPassword + ''' using plugin Srp;' );
-		Add( 'commit;' );  //Technically exit implies a commit so this not necessary. OTOH, explicitly committing makes for more readable code.
-		Add( 'exit;' );
-		SaveToFile( Tempdir +'\temp.sql' );
-	end;
-	Result := Exec( CmdStr , ' -m -m2 -user SYSDBA -i ' + TempDir + '\temp.sql -o ' + TempDir + '\temp.sql.txt employee ' , TempDir, SW_HIDE, ewWaitUntilTerminated, ResultCode );
-	DeleteFile( TempDir + +'\temp.sql ');
+  TempDir := ExpandConstant( '{tmp}' );
+  CmdStr := ExpandConstant( '{app}\isql.exe' );
+  InputStr := TempDir + '\' + 'temp.sql';
+  OutputStr := InputStr + '.txt';
+
+  // Ensure these files do not already exist.
+  if FileExists( InputStr ) then DeleteFile( InputStr );
+  if FileExists( OutputStr ) then DeleteFile( OutputStr );
+
+  AStringList := TStringList.create;
+  with AStringList do begin
+    Add( 'create or alter user ' + GetAdminUserName + ' password ''' + GetAdminUserPassword + ''' using plugin Srp;' );
+    Add( 'exit;' );
+    SaveToFile( InputStr );
+  end;
+  Result := Exec( CmdStr , ' -m -m2 -user SYSDBA -i ' + InputStr + ' -o ' + OutputStr + ' employee ' , TempDir, SW_HIDE, ewWaitUntilTerminated, ResultCode );
+  if ResultCode <> 0 then begin
+    Result := False;
+    Log( 'In function InitSecurityDB Exec isql returned ' + IntToStr(ResultCode) + ' executing ' + InputStr  );
+  end;
+  if FindInFile( OutputStr, 'error' ) then begin
+    Result := False;
+    Log( 'In function InitSecurityDB FindInFile found an error in ' + OutputStr );
+  end;
+
+  DeleteFile( InputStr );
+  DeleteFile( OutputStr );
 end;
 
 
@@ -954,16 +972,16 @@ begin
 
       // These attempts to modify firebird.conf may not survice repeated installs.
 
-			if WizardIsTaskSelected('UseClassicServerTask') then
-				ReplaceLine(GetAppPath+'\firebird.conf','ServerMode = ','ServerMode = Classic','#');
+      if WizardIsTaskSelected('UseClassicServerTask') then
+        ReplaceLine(GetAppPath+'\firebird.conf','ServerMode = ','ServerMode = Classic','#');
 
       if WizardIsTaskSelected('UseSuperClassicTask') then
-				ReplaceLine(GetAppPath+'\firebird.conf','ServerMode = ','ServerMode = SuperClassic','#');
+        ReplaceLine(GetAppPath+'\firebird.conf','ServerMode = ','ServerMode = SuperClassic','#');
 
-			if WizardIsTaskSelected('UseSuperServerTask')  then
-				ReplaceLine(GetAppPath+'\firebird.conf','ServerMode = ','ServerMode = Super','#');
+      if WizardIsTaskSelected('UseSuperServerTask')  then
+        ReplaceLine(GetAppPath+'\firebird.conf','ServerMode = ','ServerMode = Super','#');
 
-		end;
+    end;
 
   end;
 end;
@@ -986,16 +1004,16 @@ var
 begin
   //Do resize only once!
   if wizardform.height = initWizardHeight then begin
-  AHeight := HEIGHT_INCREASE;
-  AWidth := WIDTH_INCREASE;
+    AHeight := HEIGHT_INCREASE;
+    AWidth := WIDTH_INCREASE;
 
-  if not Increase then begin
-    AHeight := (AHeight * (-1));
-    AWidth := (AWidth * (-1));
-  end;
+    if not Increase then begin
+      AHeight := (AHeight * (-1));
+      AWidth := (AWidth * (-1));
+    end;
 
-  SetupWizardFormComponentsArrays;
-  ResizeWizardFormHeight(AHeight);
+    SetupWizardFormComponentsArrays;
+    ResizeWizardFormHeight(AHeight);
 //  ResizeWizardFormWidth(AWidth);
   end;
 end;
@@ -1019,9 +1037,8 @@ var
   AppStr: String;
   ReadMeFileStr: String;
 begin
-   case CurStep of
+  case CurStep of
     ssInstall: begin
-//      RenamePreFB3RC1Files;
       SetupSharedFilesArray;
       GetSharedLibCountBeforeCopy;
       end;
@@ -1032,10 +1049,11 @@ begin
       IncrementSharedCount(Is64BitInstallMode, GetAppPath+'\firebird.log', false);
       IncrementSharedCount(Is64BitInstallMode, GetAppPath+'\databases.conf', false);
       IncrementSharedCount(Is64BitInstallMode, GetAppPath+'\fbtrace.conf', false);
-      IncrementSharedCount(Is64BitInstallMode, GetAppPath+'\security4.fdb', false);
+      IncrementSharedCount(Is64BitInstallMode, GetAppPath+'\security{#FB_MAJOR_VER}.fdb', false);
       IncrementSharedCount(Is64BitInstallMode, GetAppPath+'\replication.conf', false);
 
-			InitSecurityDB;
+      if init_secdb = 1 then
+        InitSecurityDB;
 
       //Fix up conf file
       UpdateFirebirdConf;
@@ -1080,7 +1098,7 @@ end;
 // # FIXME - we can probably remove this function
 function ChooseUninstallIcon(Default: String): String;
 begin
-	result := GetAppPath+'\firebird.exe';
+  result := GetAppPath+'\firebird.exe';
 end;
 
 //InnoSetup has a Check Parameter that allows installation if the function returns true.
@@ -1158,8 +1176,8 @@ begin
           aStringList.add(appPath+'\firebird.log');
           aStringList.add(appPath+'\databases.conf');
           aStringList.add(appPath+'\fbtrace.conf');
-          aStringList.add(appPath+'\security4.fdb');
-          aStringList.add(appPath+'\security4.fdb.old');
+          aStringList.add(appPath+'\security{#FB_MAJOR_VER}.fdb');
+          aStringList.add(appPath+'\security{#FB_MAJOR_VER}.fdb.old');
           aStringList.add(appPath+'\replication.conf');
 
           for count := 0 to aStringList.count - 1 do begin
@@ -1203,12 +1221,12 @@ end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
-	i: integer;
+  i: integer;
 begin
   Result := True;
   case CurPageID of
     AdminUserPage.ID : begin
-	  { check user has entered new sysdba password correctly. }
+    { check user has entered new sysdba password correctly. }
       i := CompareStr(AdminUserPage.Values[0],AdminUserPage.Values[1]);
       If  not (i = 0) then begin
         Result := False;
@@ -1222,3 +1240,5 @@ end;
 
 begin
 end.
+
+; kate: replace-tabs on; indent-width 2; tab-width 2; replace-tabs-save on; syntax Pascal;

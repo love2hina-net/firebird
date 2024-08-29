@@ -350,7 +350,7 @@ inline void clearRecordStack(RecordStack& stack)
 	{
 		Record* r = stack.pop();
 		// records from undo log must not be deleted
-		if (!r->testFlags(REC_undo_active))
+		if (!r->isTempActive())
 			delete r;
 	}
 }
@@ -452,8 +452,8 @@ void VIO_backout(thread_db* tdbb, record_param* rpb, const jrd_tra* transaction)
 	Record* data = NULL;
 	Record* old_data = NULL;
 
-	AutoGCRecord gc_rec1;
-	AutoGCRecord gc_rec2;
+	AutoTempRecord gc_rec1;
+	AutoTempRecord gc_rec2;
 
 	bool samePage;
 	bool deleted;
@@ -1600,7 +1600,6 @@ bool VIO_erase(thread_db* tdbb, record_param* rpb, jrd_tra* transaction)
 		case rel_pages:
 		case rel_formats:
 		case rel_trans:
-		case rel_rcon:
 		case rel_refc:
 		case rel_ccon:
 		case rel_msgs:
@@ -1867,6 +1866,22 @@ bool VIO_erase(thread_db* tdbb, record_param* rpb, jrd_tra* transaction)
 			DFW_post_work(transaction, dfw_grant, &desc, id);
 			break;
 
+		case rel_rcon:
+			protect_system_table_delupd(tdbb, relation, "DELETE");
+
+			// ensure relation partners is known
+			EVL_field(0, rpb->rpb_record, f_rcon_rname, &desc);
+			{
+				MetaName relation_name;
+				MOV_get_metaname(tdbb, &desc, relation_name);
+				r2 = MET_lookup_relation(tdbb, relation_name);
+				fb_assert(r2);
+
+				if (r2)
+					MET_scan_partners(tdbb, r2);
+			}
+			break;
+
 		case rel_backup_history:
 			if (!tdbb->getAttachment()->locksmith(tdbb, USE_NBACKUP_UTILITY))
 				protect_system_table_delupd(tdbb, relation, "DELETE", true);
@@ -2054,27 +2069,35 @@ static void delete_version_chain(thread_db* tdbb, record_param* rpb, bool delete
 		rpb->rpb_f_page, rpb->rpb_f_line);
 #endif
 
+	// It's possible to get rpb_page == 0 from VIO_intermediate_gc via
+	// staying_chain_rpb. This case happens there when the staying record
+	// stack has 1 item at the moment this rpb is created. So return to
+	// avoid an error on DPM_fetch below.
+	if (!rpb->rpb_page)
+		return;
+
 	ULONG prior_page = 0;
 
-	if (!delete_head)
+	// Note that the page number of the oldest version in the chain should
+	// be stored in rpb->rpb_page before exiting this function because
+	// VIO_intermediate_gc will use it as a prior page number.
+	while (rpb->rpb_b_page != 0 || delete_head)
 	{
-		prior_page = rpb->rpb_page;
-		rpb->rpb_page = rpb->rpb_b_page;
-		rpb->rpb_line = rpb->rpb_b_line;
-	}
+		if (!delete_head)
+		{
+			prior_page = rpb->rpb_page;
+			rpb->rpb_page = rpb->rpb_b_page;
+			rpb->rpb_line = rpb->rpb_b_line;
+		}
+		else
+			delete_head = false;
 
-	while (rpb->rpb_page != 0)
-	{
 		if (!DPM_fetch(tdbb, rpb, LCK_write))
 			BUGCHECK(291);		// msg 291 cannot find record back version
 
 		record_param temp_rpb = *rpb;
 		DPM_delete(tdbb, &temp_rpb, prior_page);
 		delete_tail(tdbb, &temp_rpb, temp_rpb.rpb_page, 0, 0);
-
-		prior_page = rpb->rpb_page;
-		rpb->rpb_page = rpb->rpb_b_page;
-		rpb->rpb_line = rpb->rpb_b_line;
 	}
 }
 
@@ -2428,10 +2451,11 @@ Record* VIO_gc_record(thread_db* tdbb, jrd_rel* relation)
 		Record* const record = *iter;
 		fb_assert(record);
 
-		if (!record->testFlags(REC_gc_active))
+		if (!record->isTempActive())
 		{
 			// initialize record for reuse
-			record->reset(format, REC_gc_active);
+			record->reset(format);
+			record->setTempActive();
 			return record;
 		}
 	}
@@ -2439,7 +2463,7 @@ Record* VIO_gc_record(thread_db* tdbb, jrd_rel* relation)
 	// Allocate a garbage collect record block if all are active
 
 	Record* const record = FB_NEW_POOL(*relation->rel_pool)
-		Record(*relation->rel_pool, format, REC_gc_active);
+		Record(*relation->rel_pool, format, true);
 	relation->rel_gc_records.add(record);
 	return record;
 }
@@ -2844,7 +2868,7 @@ bool VIO_modify(thread_db* tdbb, record_param* org_rpb, record_param* new_rpb, j
 	if (org_rpb->rpb_runtime_flags & (RPB_refetch | RPB_undo_read))
 	{
 		const bool undo_read = (org_rpb->rpb_runtime_flags & RPB_undo_read);
-		AutoGCRecord old_record;
+		AutoTempRecord old_record;
 		if (undo_read)
 		{
 			old_record = VIO_gc_record(tdbb, relation);
@@ -3250,6 +3274,8 @@ bool VIO_modify(thread_db* tdbb, record_param* org_rpb, record_param* new_rpb, j
 	org_rpb->rpb_flags &= ~(rpb_delta | rpb_uk_modified);
 	org_rpb->rpb_flags |= new_rpb->rpb_flags & (rpb_delta | rpb_uk_modified);
 
+	stack.merge(new_rpb->rpb_record->getPrecedence());
+
 	replace_record(tdbb, org_rpb, &stack, transaction);
 
 	if (!(transaction->tra_flags & TRA_system) &&
@@ -3292,7 +3318,8 @@ bool VIO_next_record(thread_db* tdbb,
 					 record_param* rpb,
 					 jrd_tra* transaction,
 					 MemoryPool* pool,
-					 bool onepage)
+					 bool onepage,
+					 const RecordNumber* upper)
 {
 /**************************************
  *
@@ -3327,9 +3354,14 @@ bool VIO_next_record(thread_db* tdbb,
 		rpb->rpb_f_page, rpb->rpb_f_line);
 #endif
 
-	do {
+	do
+	{
 		if (!DPM_next(tdbb, rpb, lock_type, onepage))
+			return false;
+
+		if (upper && rpb->rpb_number > *upper)
 		{
+			CCH_RELEASE(tdbb, &rpb->getWindow(tdbb));
 			return false;
 		}
 	} while (!VIO_chase_record_version(tdbb, rpb, transaction, pool, false, false));
@@ -5104,7 +5136,7 @@ static UndoDataRet get_undo_data(thread_db* tdbb, jrd_tra* transaction,
 		rpb->rpb_runtime_flags |= RPB_undo_data;
 		CCH_RELEASE(tdbb, &rpb->getWindow(tdbb));
 
-		AutoUndoRecord undoRecord(undo.setupRecord(transaction));
+		AutoTempRecord undoRecord(undo.setupRecord(transaction));
 
 		Record* const record = VIO_record(tdbb, rpb, undoRecord->getFormat(), pool);
 		record->copyFrom(undoRecord);
@@ -5987,7 +6019,7 @@ static void purge(thread_db* tdbb, record_param* rpb)
 	// the record.
 
 	record_param temp = *rpb;
-	AutoGCRecord gc_rec(VIO_gc_record(tdbb, relation));
+	AutoTempRecord gc_rec(VIO_gc_record(tdbb, relation));
 	Record* record = rpb->rpb_record = gc_rec;
 
 	VIO_data(tdbb, rpb, relation->rel_pool);
@@ -6336,7 +6368,7 @@ void VIO_update_in_place(thread_db* tdbb,
 	// becomes meaningless.  What we need to do is replace the old "delta" record
 	// with an old "complete" record, update in placement, then delete the old delta record
 
-	AutoGCRecord gc_rec;
+	AutoTempRecord gc_rec;
 
 	record_param temp2;
 	const Record* prior = org_rpb->rpb_prior;
