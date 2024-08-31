@@ -26,16 +26,16 @@
 #include "../jrd/license.h"
 #include "../common/file_params.h"
 #include "../remote/remote_def.h"
-#include "../../remote/server/os/win32/window.rh"
-#include "../../remote/server/os/win32/property.rh"
+#include "../remote/server/os/win32/window.rh"
+#include "../remote/server/os/win32/property.rh"
 
 #include "ibase.h"
 #include "../jrd/jrd_proto.h"
-#include "../../remote/server/os/win32/window_proto.h"
-#include "../../remote/server/os/win32/propty_proto.h"
+#include "../remote/server/os/win32/window_proto.h"
+#include "../remote/server/os/win32/propty_proto.h"
 #include "../yvalve/gds_proto.h"
 
-#include "../../remote/server/os/win32/window.h"
+#include "../remote/server/os/win32/window.h"
 #include "../common/isc_proto.h"
 
 #define NO_PORT

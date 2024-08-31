@@ -356,6 +356,27 @@ using Firebird::MemoryPool;
 
 // operators new and delete
 
+// NOTE: 2024/09/02 love2hina engine13.dllでのリンケージ時にMSVCRTと衝突するため、インライン(common)とする
+inline void* operator new(size_t s)
+{
+	return getExternalMemoryPool()->allocate(s ALLOC_ARGS);
+}
+
+inline void* operator new[](size_t s)
+{
+	return getExternalMemoryPool()->allocate(s ALLOC_ARGS);
+}
+
+inline void operator delete(void* mem) noexcept
+{
+	MemoryPool::globalFree(mem);
+}
+
+inline void operator delete[](void* mem) noexcept
+{
+	MemoryPool::globalFree(mem);
+}
+
 inline void* operator new(size_t s, Firebird::MemoryPool& pool ALLOC_PARAMS)
 {
 	return pool.allocate(s ALLOC_PASS_ARGS);

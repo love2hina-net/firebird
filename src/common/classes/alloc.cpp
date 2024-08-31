@@ -3106,23 +3106,4 @@ void AutoStorage::ProbeStack() const
 // Global operator "delete" is always redefined by firebird,
 // in a case when we actually need "new" only with file/line information
 // this version should be also present as a pair for "delete".
-
-void* operator new(size_t s)
-{
-	return getExternalMemoryPool()->allocate(s ALLOC_ARGS);
-}
-
-void* operator new[](size_t s)
-{
-	return getExternalMemoryPool()->allocate(s ALLOC_ARGS);
-}
-
-void operator delete(void* mem) noexcept
-{
-	MemoryPool::globalFree(mem);
-}
-
-void operator delete[](void* mem) noexcept
-{
-	MemoryPool::globalFree(mem);
-}
+// NOTE: 2024/09/02 love2hina alloc.hへ移動
