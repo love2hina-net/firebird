@@ -1,12 +1,20 @@
 
 cmake_minimum_required(VERSION 3.29)
 
-enable_language(C CXX ASM_MASM)
-project("firebird" LANGUAGES C CXX ASM_MASM)
-
 # bugs: https://gitlab.kitware.com/cmake/cmake/-/issues/22817
-if (WIN32)
+if(WIN32)
+    set(FB_LANG_ASM "ASM_MASM")
     set(CMAKE_ASM_MASM_CREATE_STATIC_LIBRARY "<CMAKE_AR> /nologo <LINK_FLAGS> /out:<TARGET> <OBJECTS>")
+else()
+    set(FB_LANG_ASM "ASM")
+endif()
+
+enable_language(C CXX "${FB_LANG_ASM}")
+project("firebird" LANGUAGES C CXX "${FB_LANG_ASM}")
+
+if(NOT MSVC)
+    # 何故か target_compile_features cxx_std_17 指定が無視されるため。
+    set(CMAKE_CXX_FLAGS "--std=c++17")
 endif()
 
 set(FIREBIRD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -20,16 +28,56 @@ set(CMAKE_MODULE_PATH
 ################################################################################
 include(Configure)
 
-set(FB_PREFIX "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}")
-set(FB_IPC_NAME "FirebirdIPI")
-set(FB_LOGFILENAME "firebird.log")
-set(FB_PIPE_NAME "interbas")
+set(FB_PREFIX       "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}")
+set(FB_LOGFILENAME  "firebird.log")
+set(FB_PIPE_NAME    "interbas")
 set(FB_SERVICE_NAME "gds_db")
 set(FB_SERVICE_PORT 3050)
 
-if (WIN32)
-    set(FB_PREFIX [[C:\\Program Files\\Firebird\\]])
-    set(FB_IPC_NAME "FIREBIRD")
+if(WIN32)
+    # set(FB_PREFIX [[C:\\Program Files\\Firebird\\]])
+    set(FB_IPC_NAME     "FIREBIRD")
+
+    set(FB_BINDIR       "")
+    set(FB_CONFDIR      "")
+    set(FB_DOCDIR       "doc")
+    set(FB_GUARDDIR     "")
+    set(FB_INCDIR       "include")
+    set(FB_INTLDIR      "intl")
+    set(FB_LIBDIR       "")
+    set(FB_LOGDIR       "")
+    set(FB_MISCDIR      "")
+    set(FB_MSGDIR       "")
+    set(FB_PLUGDIR      "plugins")
+    set(FB_SAMPLEDBDIR  "")
+    set(FB_SAMPLEDIR    "")
+    set(FB_SBINDIR      "")
+    set(FB_SECDBDIR     "")
+    set(FB_TZDATADIR    "tzdata")
+else()
+    set(FB_IPC_NAME     "FirebirdIPI")
+
+    set(FB_BINDIR       "${FB_PREFIX}/bin")
+    set(FB_CONFDIR      "${FB_PREFIX}")
+    set(FB_DOCDIR       "${FB_PREFIX}/doc")
+    set(FB_GUARDDIR     "${FB_PREFIX}")
+    set(FB_INCDIR       "${FB_PREFIX}/include")
+    set(FB_INTLDIR      "${FB_PREFIX}/intl")
+    set(FB_LIBDIR       "${FB_PREFIX}/lib")
+    set(FB_LOGDIR       "${FB_PREFIX}")
+    set(FB_MISCDIR      "${FB_PREFIX}/misc")
+    set(FB_MSGDIR       "${FB_PREFIX}")
+    set(FB_PLUGDIR      "${FB_PREFIX}/plugins")
+    set(FB_SAMPLEDBDIR  "${FB_PREFIX}/examples/empbuild")
+    set(FB_SAMPLEDIR    "${FB_PREFIX}/examples")
+    set(FB_SBINDIR      "${FB_PREFIX}/bin")
+    set(FB_SECDBDIR     "${FB_PREFIX}")
+    set(FB_TZDATADIR    "${FB_PREFIX}/tzdata")
+endif()
+
+if(APPLE)
+    # unix.cppでmacは対象外になるため
+    set(SUPPORT_RAW_DEVICES 0)
 endif()
 
 configure_file(
@@ -50,7 +98,7 @@ if(APPLE)
         -fvisibility=hidden
         -fno-common
         -fno-rtti
-        -mmacosx-version-min=10.7
+        -mmacosx-version-min=14.0
     )
     add_link_options(
         -flat_namespace
@@ -90,11 +138,12 @@ elseif(APPLE)
             DEPENDS "${LIB_ICU}"
             COMMAND ${CMAKE_COMMAND} -E copy "${LIB_ICU}" "${LIB_COPY}"
             COMMAND chmod a+rw "${LIB_COPY}"
-            COMMAND install_name_tool
-                -id "@rpath/${LIB_FILENAME}"
-                -change "@loader_path/libicudata.73.dylib" "@loader_path/libicudata.73.2.dylib"
-                -change "@loader_path/libicuuc.73.dylib" "@loader_path/libicuuc.73.2.dylib"
-                "${LIB_COPY}"
+            # TODO: 後で修正
+            # COMMAND install_name_tool
+            #     -id "@rpath/${LIB_FILENAME}"
+            #     -change "@loader_path/libicudata.73.dylib" "@loader_path/libicudata.73.2.dylib"
+            #     -change "@loader_path/libicuuc.73.dylib" "@loader_path/libicuuc.73.2.dylib"
+            #     "${LIB_COPY}"
             VERBATIM
         )
 
@@ -102,27 +151,47 @@ elseif(APPLE)
         set("${variable}" "${LIB_COPY}" PARENT_SCOPE)
     endfunction()
 
+    function(fb_find_icu_header variable header)
+        cmake_parse_arguments(ICU "" "" "PATHS" ${ARGN})
+
+        find_path(HEADER_ICU
+            NAMES "${header}"
+            PATHS ${ICU_PATHS}
+            NO_CACHE
+            REQUIRED
+        )
+
+        # 出力先
+        cmake_path(GET HEADER_ICU PARENT_PATH HEADER_PATH)
+        # 設定
+        set("${variable}" "${HEADER_PATH}" PARENT_SCOPE)
+    endfunction()
+
     fb_find_icu_library(LIB_ICUDATA icudata
         PATHS
             /usr/lib
             /usr/local/lib
-            /usr/local/opt/icu4c/lib
+            /opt/homebrew/opt/icu4c/lib
     )
     fb_find_icu_library(LIB_ICUI18N icui18n
         PATHS
             /usr/lib
             /usr/local/lib
-            /usr/local/opt/icu4c/lib
+            /opt/homebrew/opt/icu4c/lib
     )
     fb_find_icu_library(LIB_ICUUC icuuc
         PATHS
             /usr/lib
             /usr/local/lib
-            /usr/local/opt/icu4c/lib
+            /opt/homebrew/opt/icu4c/lib
     )
 
-    # TODO: 決め打ち
-    set(ICU_INC_PATH "/usr/local/opt/icu4c/include")
+    fb_find_icu_header(ICU_INC_PATH "unicode/ucnv.h"
+        PATHS
+            /usr/include
+            /usr/local/include
+            /opt/homebrew/opt/icu4c/include
+    )
 endif()
 
 # zlib

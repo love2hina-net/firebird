@@ -150,6 +150,7 @@ if(UNIX)
             COMMAND UNIX
                 ${CMAKE_COMMAND} -E rm -f "${FIREBIRD_GEN_DIR}/common/${VER_FILE}"
             COMMAND APPLE
+                "touch ${FIREBIRD_GEN_DIR}/common/${VER_FILE}$<SEMICOLON>"
                 "for i in `grep -v '#' ${FIREBIRD_SOURCE_DIR}/builds/posix/${VER_FILE}`$<SEMICOLON>"
                 "do"
                     "echo \"\t_$i\" >> ${FIREBIRD_GEN_DIR}/common/${VER_FILE}$<SEMICOLON>"

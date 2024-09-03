@@ -366,9 +366,12 @@ function(fb_add_library target type)
 
     foreach(BUILD IN LISTS LIB_BUILD_TYPES)
         add_library("${target}_${BUILD}" ${type})
+        target_compile_features("${target}_${BUILD}"
+            PUBLIC
+                cxx_std_17
+        )
         set_target_properties("${target}_${BUILD}"
             PROPERTIES
-                CXX_STANDARD    17
                 FB_BUILD_TYPES  "${LIB_BUILD_TYPES}"
                 ARCHIVE_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
                 LIBRARY_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
@@ -448,9 +451,12 @@ function(fb_add_executable target)
 
     foreach(BUILD IN LISTS EXE_BUILD_TYPES)
         add_executable("${target}_${BUILD}" ${EXE_FLAGS})
+        target_compile_features("${target}_${BUILD}"
+            PUBLIC
+                cxx_std_17
+        )
         set_target_properties("${target}_${BUILD}"
             PROPERTIES
-                CXX_STANDARD    17
                 FB_BUILD_TYPES  "${EXE_BUILD_TYPES}"
                 RUNTIME_OUTPUT_DIRECTORY "${FIREBIRD_OUTPUT_DIR}/${BUILD}"
                 OUTPUT_NAME     "${EXE_OUTPUT_NAME}"

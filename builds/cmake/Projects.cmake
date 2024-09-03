@@ -639,24 +639,22 @@ fb_target_sources(decNumber
 ################################################################################
 # ttmath
 ################################################################################
-fb_add_library(libttmath STATIC COMMON OUTPUT_NAME ttmath)
-set_property(TARGET libttmath_common
-    PROPERTY
-        MSVC_RUNTIME_LIBRARY ""
-)
-fb_target_sources(libttmath
-    ROOT_PRIVATE
-        "extern/ttmath/ttmathuint_x86_64_msvc.asm"
-)
+if(MSVC)
+    fb_add_library(libttmath STATIC COMMON OUTPUT_NAME ttmath)
+    set_property(TARGET libttmath_common
+        PROPERTY
+            MSVC_RUNTIME_LIBRARY ""
+    )
+    fb_target_sources(libttmath
+        ROOT_PRIVATE
+            "extern/ttmath/ttmathuint_x86_64_msvc.asm"
+    )
+endif()
 
 ################################################################################
 # common
 ################################################################################
 fb_add_library(common STATIC COMMON)
-target_sources(common_common
-    PRIVATE
-        ${COMMON_ICU_DEPS}
-)
 fb_target_compile_definitions(common
     PRIVATE
         DEV_BUILD
@@ -667,7 +665,7 @@ fb_target_link_libraries(common
         libtommath
         libtomcrypt
         decNumber
-        libttmath
+        $<$<BOOL:${MSVC}>:libttmath>
 )
 if(WIN32)
     fb_target_link_libraries(common
@@ -696,6 +694,7 @@ fb_target_include_directories(common
 )
 fb_target_sources(common
     PRIVATE
+        ${COMMON_ICU_DEPS}
         $<$<BOOL:${ZLIB_INC_PATH}>:${ZLIB_INC_PATH}/zlib.h>
 
     ROOT_PRIVATE

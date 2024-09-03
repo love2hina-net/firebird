@@ -309,8 +309,10 @@ check_prototype_definition(
 
 check_struct_has_member("struct dirent" d_type dirent.h HAVE_STRUCT_DIRENT_D_TYPE)
 
-check_c_source_compiles("#include <unistd.h>\nmain(){getpgrp();}" GETPGRP_VOID)
-check_c_source_compiles("#include <unistd.h>\nmain(){setpgrp();}" SETPGRP_VOID)
+check_c_source_compiles("#include <unistd.h>\nmain(){getpgrp(0, 0);}" GETPGRP_ARGS)
+set(GETPGRP_VOID "$<NOT:${GETPGRP_ARGS}>")
+check_c_source_compiles("#include <unistd.h>\nmain(){setpgrp(0, 0);}" SETPGRP_ARGS)
+set(SETPGRP_VOID "$<NOT:${SETPGRP_ARGS}>")
 
 check_c_source_compiles("__thread int a = 42;main(){a = a + 1;}" HAVE___THREAD)
 check_c_source_compiles("#include <sys/time.h>\n#include <time.h>\nmain(){}" TIME_WITH_SYS_TIME)
