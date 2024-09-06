@@ -28,6 +28,7 @@ else()
     set(LODIR_PLUGINS   "/plugins")
 endif()
 
+# TODO: Apple Silliconの未考慮
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     # 64 bits
     set(PLATFORM "x64")
@@ -473,7 +474,7 @@ function(fb_add_executable target)
         elseif(UNIX)
             set_target_properties("${target}_${BUILD}"
                 PROPERTIES
-                    BUILD_RPATH "../lib;../plugins"
+                    BUILD_RPATH "..${LODIR_LIB};..${LODIR_PLUGINS}"
             )
         endif()
 

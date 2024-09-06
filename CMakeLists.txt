@@ -28,14 +28,13 @@ set(CMAKE_MODULE_PATH
 ################################################################################
 include(Configure)
 
-set(FB_PREFIX       "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}")
 set(FB_LOGFILENAME  "firebird.log")
 set(FB_PIPE_NAME    "interbas")
 set(FB_SERVICE_NAME "gds_db")
 set(FB_SERVICE_PORT 3050)
 
 if(WIN32)
-    # set(FB_PREFIX [[C:\\Program Files\\Firebird\\]])
+    set(FB_PREFIX       [[C:\\Program Files\\Firebird\\]])
     set(FB_IPC_NAME     "FIREBIRD")
 
     set(FB_BINDIR       "")
@@ -55,24 +54,25 @@ if(WIN32)
     set(FB_SECDBDIR     "")
     set(FB_TZDATADIR    "tzdata")
 else()
+    set(FB_PREFIX       "${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}")
     set(FB_IPC_NAME     "FirebirdIPI")
 
-    set(FB_BINDIR       "${FB_PREFIX}/bin")
-    set(FB_CONFDIR      "${FB_PREFIX}")
-    set(FB_DOCDIR       "${FB_PREFIX}/doc")
-    set(FB_GUARDDIR     "${FB_PREFIX}")
-    set(FB_INCDIR       "${FB_PREFIX}/include")
-    set(FB_INTLDIR      "${FB_PREFIX}/intl")
-    set(FB_LIBDIR       "${FB_PREFIX}/lib")
-    set(FB_LOGDIR       "${FB_PREFIX}")
-    set(FB_MISCDIR      "${FB_PREFIX}/misc")
-    set(FB_MSGDIR       "${FB_PREFIX}")
-    set(FB_PLUGDIR      "${FB_PREFIX}/plugins")
-    set(FB_SAMPLEDBDIR  "${FB_PREFIX}/examples/empbuild")
-    set(FB_SAMPLEDIR    "${FB_PREFIX}/examples")
-    set(FB_SBINDIR      "${FB_PREFIX}/bin")
-    set(FB_SECDBDIR     "${FB_PREFIX}")
-    set(FB_TZDATADIR    "${FB_PREFIX}/tzdata")
+    set(FB_BINDIR       "bin")
+    set(FB_CONFDIR      "")
+    set(FB_DOCDIR       "doc")
+    set(FB_GUARDDIR     "")
+    set(FB_INCDIR       "include")
+    set(FB_INTLDIR      "intl")
+    set(FB_LIBDIR       "lib")
+    set(FB_LOGDIR       "")
+    set(FB_MISCDIR      "misc")
+    set(FB_MSGDIR       "")
+    set(FB_PLUGDIR      "plugins")
+    set(FB_SAMPLEDBDIR  "examples/empbuild")
+    set(FB_SAMPLEDIR    "examples")
+    set(FB_SBINDIR      "bin")
+    set(FB_SECDBDIR     "")
+    set(FB_TZDATADIR    "tzdata")
 endif()
 
 if(APPLE)
@@ -87,18 +87,21 @@ configure_file(
 )
 
 if(APPLE)
+    # TODO: ARM64はApple Sillicon決め打ちになってるので、後で修正
     add_compile_definitions(
         DARWIN
+        ARM64
         _THREAD_SAFE
     )
     add_compile_options(
         -fPIC
-        -stdlib=libc++
         -fvisibility-inlines-hidden
         -fvisibility=hidden
         -fno-common
         -fno-rtti
-        -mmacosx-version-min=14.0
+        -mmacosx-version-min=11.0
+        -Wno-deprecated-declarations # sprintfの警告を抑制
+        -Wno-inline-new-delete
     )
     add_link_options(
         -flat_namespace
