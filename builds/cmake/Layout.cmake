@@ -391,8 +391,10 @@ function(fb_add_library target type)
         elseif(APPLE)
             set_target_properties("${target}_${BUILD}"
                 PROPERTIES
-                    MACOSX_RPATH true
-                    LINK_OPTIONS "LINKER:-seg1addr,0x30000000,-current_version,4.0.2,-compatibility_version,4.0.2"
+                    MACOSX_RPATH                TRUE
+                    BUILD_RPATH_USE_ORIGIN      FALSE
+                    BUILD_WITH_INSTALL_RPATH    FALSE
+                    LINK_OPTIONS "LINKER:-seg1addr,0x30000000,-current_version,5.0.1,-compatibility_version,5.0.1"
             )
         endif()
 
@@ -474,7 +476,9 @@ function(fb_add_executable target)
         elseif(UNIX)
             set_target_properties("${target}_${BUILD}"
                 PROPERTIES
-                    BUILD_RPATH "..${LODIR_LIB};..${LODIR_PLUGINS}"
+                    BUILD_RPATH_USE_ORIGIN   FALSE
+                    BUILD_WITH_INSTALL_RPATH FALSE
+                    BUILD_RPATH "@loader_path/..${LODIR_LIB};@loader_path/..${LODIR_PLUGINS}"
             )
         endif()
 

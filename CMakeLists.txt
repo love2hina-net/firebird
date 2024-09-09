@@ -136,17 +136,25 @@ elseif(APPLE)
         cmake_path(GET LIB_ICU  FILENAME    LIB_FILENAME)
         cmake_path(SET LIB_COPY NORMALIZE   "${FIREBIRD_OUTPUT_DIR}/common/${LIB_FILENAME}")
 
+        # バージョンを検出する
+        if("${LIB_FILENAME}" MATCHES [[libicu[^.]+\.([0-9]+\.)([0-9]+\.)?dylib]])
+            set(LIB_ICU_MAJOR "${CMAKE_MATCH_1}")
+            set(LIB_ICU_MINOR "${CMAKE_MATCH_2}")
+        else()
+            message(FATAL_ERROR "Failed to detect ICU version: ${LIB_FILENAME}")
+        endif()
+
         add_custom_command(
             OUTPUT  "${LIB_COPY}"
             DEPENDS "${LIB_ICU}"
             COMMAND ${CMAKE_COMMAND} -E copy "${LIB_ICU}" "${LIB_COPY}"
             COMMAND chmod a+rw "${LIB_COPY}"
-            # TODO: 後で修正
-            # COMMAND install_name_tool
-            #     -id "@rpath/${LIB_FILENAME}"
-            #     -change "@loader_path/libicudata.73.dylib" "@loader_path/libicudata.73.2.dylib"
-            #     -change "@loader_path/libicuuc.73.dylib" "@loader_path/libicuuc.73.2.dylib"
-            #     "${LIB_COPY}"
+            COMMAND install_name_tool
+                -id "@rpath/${LIB_FILENAME}"
+                -change "@loader_path/libicudata.${LIB_ICU_MAJOR}dylib" "@loader_path/libicudata.${LIB_ICU_MAJOR}${LIB_ICU_MINOR}dylib"
+                -change "@loader_path/libicuuc.${LIB_ICU_MAJOR}dylib"   "@loader_path/libicuuc.${LIB_ICU_MAJOR}${LIB_ICU_MINOR}dylib"
+                "${LIB_COPY}"
+            COMMAND codesign -s firebird-codesign -fv "${LIB_COPY}"
             VERBATIM
         )
 
