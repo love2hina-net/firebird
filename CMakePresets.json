@@ -37,11 +37,25 @@
             }
         },
         {
+            "name": "arm64",
+            "hidden": true,
+            "architecture": {
+                "value": "arm64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_APPLE_SILICON_PROCESSOR": "arm64"
+            }
+        },
+        {
             "name": "x64",
             "hidden": true,
             "architecture": {
                 "value": "x64",
                 "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_APPLE_SILICON_PROCESSOR": "x86_64"
             }
         },
         {
@@ -76,6 +90,15 @@
             "inherits": [
                 "windows-base",
                 "x64",
+                "debug"
+            ]
+        },
+        {
+            "name": "mac-arm64-debug",
+            "displayName": "Mac ARM64 Debug",
+            "inherits": [
+                "macOS-base",
+                "arm64",
                 "debug"
             ]
         },

@@ -389,6 +389,7 @@ function(fb_add_library target type)
                     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
             )
         elseif(APPLE)
+            # TODO: バージョンが固定値
             set_target_properties("${target}_${BUILD}"
                 PROPERTIES
                     MACOSX_RPATH                TRUE
