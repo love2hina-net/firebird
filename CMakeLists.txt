@@ -153,6 +153,7 @@ elseif(APPLE)
                 -id "@rpath/${LIB_FILENAME}"
                 -change "@loader_path/libicudata.${LIB_ICU_MAJOR}dylib" "@loader_path/libicudata.${LIB_ICU_MAJOR}${LIB_ICU_MINOR}dylib"
                 -change "@loader_path/libicuuc.${LIB_ICU_MAJOR}dylib"   "@loader_path/libicuuc.${LIB_ICU_MAJOR}${LIB_ICU_MINOR}dylib"
+                -add_rpath "@loader_path"
                 "${LIB_COPY}"
             COMMAND codesign -s firebird-codesign -fv "${LIB_COPY}"
             VERBATIM

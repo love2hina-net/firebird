@@ -395,6 +395,7 @@ function(fb_add_library target type)
                     MACOSX_RPATH                TRUE
                     BUILD_RPATH_USE_ORIGIN      FALSE
                     BUILD_WITH_INSTALL_RPATH    FALSE
+                    BUILD_RPATH  "@loader_path"
                     LINK_OPTIONS "LINKER:-seg1addr,0x30000000,-current_version,5.0.1,-compatibility_version,5.0.1"
             )
         endif()
